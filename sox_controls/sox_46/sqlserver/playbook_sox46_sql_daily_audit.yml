@@ -235,3 +235,33 @@
         audit_db_config: "{{ sox_audit_db }}"
       when: consolidated_audit_events | length > 0
       tags: [audit_insert]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 5: REPORTE DE RESULTADOS
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX-046-SQL-DAILY | Reporte Final de Ejecución"
+      ansible.builtin.debug:
+        msg:
+          - "================================================================="
+          - "REPORTE FINAL - SOX-046-SQL-DAILY                            "
+          - "================================================================="
+          - "Control: {{ sox_control_id }}"
+          - "Fecha: {{ execution_date }} {{ execution_time }}"
+          - "Job ID: {{ aap_job_id }}"
+          - "-----------------------------------------------------------------"
+          - "Instancias SQL Server procesadas: {{ total_instances_processed }}"
+          - "Eventos de auditoría recolectados: {{ total_events_collected }}"
+          - "Registros insertados en staging: {{ records_inserted_sqlserver | default(0) }}"
+          - "-----------------------------------------------------------------"
+          - "Tabla Staging: {{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_46_sql_staging }}"
+          - "SHA256 Query: {{ sox_metadata.sql_file_sha256 }}"
+          - "================================================================="
+      tags: [reporting]
+
+    - name: "SOX-046-SQL-DAILY | Advertencia si hay Instancias con Errores"
+      ansible.builtin.debug:
+        msg:
+          - "ADVERTENCIA: {{ total_instances_with_errors }} instancia(s) SQL Server con errores de conexión"
+          - "{{ instances_with_errors }}"
+      when: total_instances_with_errors | int > 0
+      tags: [reporting]

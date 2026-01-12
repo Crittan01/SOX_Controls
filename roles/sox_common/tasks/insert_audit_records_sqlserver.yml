@@ -68,3 +68,35 @@
       loop: "{{ audit_records_sqlserver }}"
       loop_control:
         label: "{{ item[1] | default('N/A') | trim }}@{{ item[5] | default('unknown') }}"
+
+    - name: "SOX Audit | Ejecutar Inserciones en AUDIT (Oracle)"
+      oracle_sql_async:
+        hostname: "{{ audit_db_config.host }}"
+        port: "{{ audit_db_config.port }}"
+        service_name: "{{ audit_db_config.service_name }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        mode: "{{ audit_db_config.mode | default('normal') }}"
+        sql_list: "{{ insert_statements_sqlserver }}"
+        max_workers: 10
+      register: audit_insert_result_sqlserver
+
+    - name: "SOX Audit | Validar Inserción Exitosa"
+      ansible.builtin.assert:
+        that:
+          - audit_insert_result_sqlserver is succeeded
+        fail_msg: |
+          ERROR CRÍTICO: Fallo en inserción de registros SQL Server
+          Tabla: {{ audit_table }}
+          Error: {{ audit_insert_result_sqlserver.msg | default('Unknown') }}
+        success_msg: "OK: {{ audit_records_sqlserver | length }} registros SQL Server insertados en {{ audit_table }}"
+
+    - name: "SOX Audit | DEBUG - Resultado de Inserción"
+      ansible.builtin.debug:
+        var: audit_insert_result_sqlserver
+      when: debug_playbook | default(false)
+
+    - name: "SOX Audit | Retornar Resultado"
+      ansible.builtin.set_fact:
+        records_inserted_sqlserver: "{{ audit_records_sqlserver | length }}"
+        insertion_success_sqlserver: true
