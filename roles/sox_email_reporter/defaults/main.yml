@@ -1,0 +1,4 @@
+---
+# defaults file for roles/sox_email_reporter
+email_cleanup: true
+sox_debug: false

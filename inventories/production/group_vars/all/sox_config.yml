@@ -1,0 +1,57 @@
+---
+# ═══════════════════════════════════════════════════════════════
+# CONFIGURACIÓN GLOBAL DE CONTROLES SOX
+# ═══════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────
+# CONFIGURACIÓN DE EMAIL
+# ───────────────────────────────────────────────────────────────
+# Configuración global SOX
+sox_email_config:
+  smtp_host: empresa1.com.co
+  smtp_port: 25
+  from_address: "Ansible Automation <ansible@empresa1.com.co>"
+  to_addresses:
+    - "cristiancamilo.garzontamayo@empresa2.com"
+    - "cristiancamilo.garzontamayo@empresa2.com"
+  team_name: "Equipo de Automatización"
+
+# ───────────────────────────────────────────────────────────────
+# CONFIGURACIÓN DE BASE DE DATOS DE AUDITORÍA
+# ───────────────────────────────────────────────────────────────
+
+# Base de datos de auditoría
+sox_audit_db:
+  host: "{{ hostvars['SN_AUDIT'].ansible_host }}"
+  port: "{{ hostvars['SN_AUDIT'].oracle_port }}"
+  service_name: "{{ hostvars['SN_AUDIT'].oracle_service_name }}"
+  schema: "ADMONBD"
+  mode: "normal"
+
+# Tablas de auditoría por control
+sox_audit_tables:
+#  sox_15: "SOX_015_USUARIOS_PRIVILEGIOS"
+#  sox_30: "SOX_030_CAMBIOS_PRIVILEGIOS"
+  sox_46: "SOX_USUARIOS_CREADOS"
+  sox_46_sql_staging: "SOX_EstadisticasSQLSERVER"   # Paso 1 (diario)
+  sox_46_sql: "SOX_USUARIOS_CREADOS_SQL"       # Paso 2 (mensual)
+# ───────────────────────────────────────────────────────────────
+# CONFIGURACIÓN DE EVIDENCIA
+# ───────────────────────────────────────────────────────────────
+sox_evidence_config:
+  hash_algorithm: "sha256"
+  include_file_metadata: true
+  include_aap_metadata: true
+  include_query_content: true
+
+# ───────────────────────────────────────────────────────────────
+# URLS Y ENLACES
+# ───────────────────────────────────────────────────────────────
+sox_urls:
+  aap_base_url: "https://10.432.12.987"
+#  gitlab_repo_url: "https://gitlab.cliente.com/automation/1-automatizaciones-ntt-ansible-sox-controls-conf"
+#  jira_project_url: "https://jira.cliente.com/projects/SOX"
+#  confluence_docs_url: "https://confluence.cliente.com/display/SOX"
+
+sox_debug: true
+debug_playbook: true

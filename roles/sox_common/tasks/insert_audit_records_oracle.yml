@@ -1,0 +1,62 @@
+---
+# ═══════════════════════════════════════════════════════════════
+# SOX COMMON - INSERTAR REGISTROS DESDE ORACLE A ORACLE AUDIT
+# ═══════════════════════════════════════════════════════════════
+- name: "SOX Audit | Insertar Registros Oracle en Base de Datos de Auditoria Oracle"
+  block:
+    - name: "SOX Audit | Validar que Hay Registros para Insertar"
+      ansible.builtin.assert:
+        that:
+          - audit_records_oracle is defined
+          - audit_records_oracle | length > 0
+        fail_msg: "ERROR: No hay registros para insertar en la base de auditoría"
+        success_msg: "OK: {{ audit_records_oracle | length }} registro(s) listos para inserción"
+
+    - name: "SOX Audit | Construir Lista de INSERTs"
+      ansible.builtin.set_fact:
+        insert_statements: "{{ insert_statements | default([]) + [insert_sql] }}"
+      vars:
+        insert_sql: >-
+          INSERT INTO {{ audit_table }}
+          (base_de_datos, usuario, estado, perfil, fecha_creacion, fecha_bloqueo, fecha_expiracion)
+          VALUES
+          ('{{ item[0] }}', '{{ item[1] }}', '{{ item[2] }}', '{{ item[3] }}',
+           TO_DATE('{{ item[4] }}', 'YYYY-MM-DD HH24:MI:SS'),
+           {{ "TO_DATE('" ~ item[5] ~ "', 'YYYY-MM-DD HH24:MI:SS')" if item[5] and item[5] != None else 'NULL' }},
+           {{ "TO_DATE('" ~ item[6] ~ "', 'YYYY-MM-DD HH24:MI:SS')" if item[6] and item[6] != None else 'NULL' }})
+      loop: "{{ audit_records_oracle }}"
+      loop_control:
+        label: "{{ item[1] }}@{{ item[0] }}"
+
+    - name: "SOX Audit | Ejecutar Inserciones en AUDIT"
+      oracle_sql_async:
+        hostname: "{{ audit_db_config.host }}"
+        port: "{{ audit_db_config.port }}"
+        service_name: "{{ audit_db_config.service_name }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        mode: "{{ audit_db_config.mode | default('normal') }}"
+        sql_list: "{{ insert_statements }}"
+        max_workers: 5
+      register: audit_insert_result
+#      no_log: true
+
+    - name: "SOX Audit | Validar Inserción Exitosa"
+      ansible.builtin.assert:
+        that:
+          - audit_insert_result is succeeded
+        fail_msg: |
+          ERROR CRÍTICO: Fallo en inserción de registros
+          Tabla: {{ audit_table }}
+          Error: {{ audit_insert_result.msg | default('Unknown') }}
+        success_msg: "OK: {{ audit_records_oracle | length }} registros insertados en {{ audit_table }}"
+
+    - name: "SOX-046 | DEBUG - Ejecutar Inserciones en AUDIT"
+      ansible.builtin.debug:
+        var: audit_insert_result
+      when: debug_playbook | default(false)
+
+    - name: "SOX Audit | Retornar Resultado"
+      ansible.builtin.set_fact:
+        records_inserted: "{{ audit_records_oracle | length }}"
+        insertion_success: true

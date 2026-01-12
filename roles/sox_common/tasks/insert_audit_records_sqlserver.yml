@@ -1,0 +1,13 @@
+---
+# ═══════════════════════════════════════════════════════════════
+# SOX COMMON - INSERTAR REGISTROS DESDE SQL SERVER A ORACLE AUDIT
+# ═══════════════════════════════════════════════════════════════
+- name: "SOX Audit | Insertar Registros SQL Server en Base de Datos de Auditoria Oracle"
+  block:
+    - name: "SOX Audit | Validar que hay Registros para Insertar"
+      ansible.builtin.assert:
+        that:
+          - audit_records_sqlserver  is defined
+          - audit_records_sqlserver  | length > 0
+        fail_msg: "ERROR: No hay registros SQL Server para insertar en la base de auditoría"
+        success_msg: "OK: {{ audit_records_sqlserver | length }} registro(s) SQL Server listos para inserción"

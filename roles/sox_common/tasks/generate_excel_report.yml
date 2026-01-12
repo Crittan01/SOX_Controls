@@ -1,0 +1,44 @@
+---
+# ═════════════════════════════════════════════════════════════════
+# TAREA: GENERAR REPORTE EXCEL
+# Genera archivos Excel para reportes SOX usando openpyxl
+# ═════════════════════════════════════════════════════════════════
+# Parámetros requeridos:
+#   - excel_output_file: Ruta completa del archivo a generar
+#   - excel_sheet_name: Nombre de la hoja
+#   - excel_headers: Lista de headers
+#   - excel_data: Lista de diccionarios con los datos
+#   - excel_data_keys: Lista de claves en orden de columnas
+#   - excel_title: (opcional) Título del reporte
+#   - excel_metadata: (opcional) Lista de líneas de metadata
+# ═════════════════════════════════════════════════════════════════
+
+- name: "Excel | Validar parámetros requeridos"
+  ansible.builtin.assert:
+    that:
+      - excel_output_file is defined
+      - excel_sheet_name is defined
+      - excel_headers is defined
+      - excel_data is defined
+      - excel_data_keys is defined
+    fail_msg: "Faltan parámetros requeridos para generar Excel"
+    success_msg: "Parámetros de Excel validados correctamente"
+
+- name: "Excel | Generar archivo Excel"
+  sox_generate_excel:
+    output_file: "{{ excel_output_file }}"
+    sheet_name: "{{ excel_sheet_name }}"
+    headers: "{{ excel_headers }}"
+    data: "{{ excel_data }}"
+    data_keys: "{{ excel_data_keys }}"
+    title: "{{ excel_title | default(omit) }}"
+    metadata: "{{ excel_metadata | default([]) }}"
+  register: excel_result
+
+- name: "Excel | Mostrar resultado de generación"
+  ansible.builtin.debug:
+    msg:
+      - "Excel generado exitosamente"
+      - "  Archivo: {{ excel_result.file_path }}"
+      - "  Registros: {{ excel_result.rows_written }}"
+  when: excel_result is defined and excel_result.changed

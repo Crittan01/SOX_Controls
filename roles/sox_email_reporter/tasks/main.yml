@@ -1,0 +1,45 @@
+---
+# tasks file for roles/sox_email_reporter
+# ═════════════════════════════════════════════════════════════════
+# ROL: SOX EMAIL REPORTER
+# Envío de reportes SOX por email con evidencia completa
+# ═════════════════════════════════════════════════════════════════
+- name: "Email | Validar Parametros Requeridos"
+  ansible.builtin.assert:
+    that:
+      - email_template is defined
+      - email_subject is defined
+      - email_data is defined
+      - email_config is defined
+    fail_msg: "ERROR: Parámetros requeridos para envío de email no definidos"
+    success_msg: "OK: Parámetros requeridos para envío de email validados"
+
+- name: "Email | Generar Nombre de Archivo Temporal"
+  ansible.builtin.set_fact:
+    email_temp_file: "/tmp/sox_email_{{ email_data.metadata.control_id }}_{{ email_data.metadata.execution_date }}.html"
+
+- name: "Email | Renderizar Template HTML"
+  ansible.builtin.template:
+    src: "{{ email_template }}"
+    dest: "{{ email_temp_file }}"
+    mode: '0644'
+
+- name: "Email | Enviar Reporte SOX por Email"
+  community.general.mail:
+    host: "{{ email_config.smtp_host }}"
+    port: "{{ email_config.smtp_port }}"
+    from: "{{ email_config.from_address }}"
+    to: "{{ email_config.to_addresses }}"
+    cc: "{{ email_config.cc_addresses | default(omit) }}"
+    subject: "{{ email_subject }}"
+    subtype: html
+    body: "{{ lookup('file', email_temp_file) }}"
+    charset: utf-8
+    attach: "{{ email_attachments | default([]) }}"
+  delegate_to: localhost
+  register: email_send_result
+  until: >-
+    email_send_result is succeeded and
+    'Mail sent successfully' in email_send_result.msg
+  retries: 3
+  delay: 5

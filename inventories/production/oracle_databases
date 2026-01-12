@@ -1,0 +1,17 @@
+[oracle_databases]
+server1_SN1 ansible_host=server1 oracle_port=1234 oracle_service_name=SN1 oracle_sid=SN1
+server2_SN2 ansible_host=server2 oracle_port=1234 oracle_service_name=SN2 oracle_sid=SN2
+server3_SN3 ansible_host=server3 oracle_port=1234 oracle_service_name=SN3 oracle_sid=SN3
+server4_SN4 ansible_host=server4 oracle_port=1234 oracle_service_name=SN4 oracle_sid=SN4
+server5_SN5 ansible_host=server5 oracle_port=1234 oracle_service_name=SN5 oracle_sid=SN5
+
+[oracle_databases:vars]
+ansible_connection=local
+oracle_mode=normal
+
+[audit_database]
+SN_AUDIT ansible_host=server6 oracle_port=1234 oracle_service_name=SN_AUDIT oracle_sid=SN_AUDIT
+
+[audit_database:vars]
+ansible_connection=local
+oracle_mode=normal

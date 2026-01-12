@@ -1,0 +1,26 @@
+---
+# ═════════════════════════════════════════════════════════════════
+# CARGAR CONTENIDO DE ARCHIVO .SQL
+# ═════════════════════════════════════════════════════════════════
+- name: "SOX Query | Leer Contenido del Archivo SQL"
+  ansible.builtin.slurp:
+    src: "{{ sql_file_path }}"
+  register: sql_file_content_raw
+  delegate_to: localhost
+
+- name: "SOX Query | Decodificar Contenido del Archivo SQL"
+  ansible.builtin.set_fact:
+    sql_query_content: "{{ sql_file_content_raw.content | b64decode }}"
+
+- name: "SOX Query | Validar Query NO este vacio"
+  ansible.builtin.assert:
+    that:
+      - sql_query_content | length > 0
+    fail_msg: "ERROR: El archivo SQL '{{ sql_file_path | basename }}' está vacío o no se pudo leer correctamente."
+    success_msg: "OK El archivo SQL '{{ sql_file_path | basename }}' se cargó correctamente y contiene datos."
+
+- name: "SOX Query | Mostrar Previsualización del Query SQL"
+  ansible.builtin.debug:
+    msg: "{{ sql_query_content.splitlines()[:5] | join('\n') }}
+      ... (Total de {{ sql_query_content.splitlines() | length }} líneas)"
+  when: sox_debug | default(false)

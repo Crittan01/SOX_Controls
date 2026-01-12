@@ -1,0 +1,205 @@
+body {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  margin: 0;
+  padding: 20px;
+}
+ 
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+ 
+.header {
+  background-color: #0066cc;
+  color: white;
+  padding: 15px;
+  text-align: center;
+  margin-bottom: 20px;
+  border-radius: 5px;
+}
+ 
+.alert {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-left: 4px solid #856404;
+  color: #856404;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+ 
+.success {
+  background-color: #d1edff;
+  border: 1px solid #bee5eb;
+  border-left: 4px solid #0c5460;
+  color: #0c5460;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+ 
+.info-box {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 4px;
+}
+ 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 15px 0;
+}
+ 
+.stat-item {
+  background-color: #ffffff;
+  padding: 15px;
+  border: 1px solid #dee2e6;
+  text-align: center;
+  border-radius: 4px;
+}
+ 
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #0066cc;
+}
+ 
+.stat-value.alert {
+  color: #d39e00;
+}
+ 
+.stat-value.context-alert {
+  color: #d39e00;
+}
+
+.stat-value.context-error {
+  color: #dc3545;
+}
+
+.stat-value.context-ok {
+  color: #28a745;
+}
+ 
+.stat-label {
+  font-size: 11px;
+  color: #666;
+  margin-top: 5px;
+  text-transform: uppercase;
+}
+ 
+.footer {
+  border-top: 2px solid #dee2e6;
+  padding-top: 15px;
+  margin-top: 30px;
+  text-align: center;
+  color: #666;
+  font-size: 11px;
+}
+ 
+.team-name {
+  color: #0066cc;
+  font-weight: bold;
+  font-size: 13px;
+}
+ 
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 15px 0;
+  font-size: 12px;
+}
+ 
+th, td {
+  border: 1px solid #dee2e6;
+  padding: 10px;
+  text-align: center;
+}
+ 
+th {
+  background-color: #e9ecef;
+  font-weight: bold;
+  font-size: 12px;
+  color: #495057;
+}
+
+tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+tr:hover {
+  background-color: #e9ecef;
+}
+ 
+.status-success, .context-ok {
+  color: #28a745;
+  font-weight: bold;
+}
+ 
+.status-failed, .context-error {
+  color: #dc3545;
+  font-weight: bold;
+}
+ 
+.status-skipped, .context-alert {
+  color: #ffc107;
+  font-weight: bold;
+}
+ 
+code {
+  background-color: #f4f4f4;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #c7254e;
+}
+
+pre {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+ul {
+  margin: 10px 0;
+  padding-left: 25px;
+}
+
+li {
+  margin: 5px 0;
+}
+
+/* Estilos específicos para SOX */
+.sox-evidence {
+  background-color: #fffacd;
+  border-left: 4px solid #0066cc;
+  padding: 15px;
+  margin: 15px 0;
+}
+
+.sox-hash {
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  background-color: #f0f0f0;
+  padding: 5px;
+  word-break: break-all;
+}

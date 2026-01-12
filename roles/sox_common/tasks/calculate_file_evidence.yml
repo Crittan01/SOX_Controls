@@ -1,0 +1,50 @@
+---
+# vars file for roles/sox_common/calculate_file_evidence.yml
+# ═════════════════════════════════════════════════════════════════
+# CALCULAR EVIDENCIA INDIVIDUAL DE ARCHIVO .SQL
+# ═════════════════════════════════════════════════════════════════
+# Este task calcula el hash SHA256 del archivo .sql específico
+# para mantener evidencia individual por control SOX
+
+- name: "SOX Evidencia | Verificar Existencia del Archivo SQL"
+  ansible.builtin.stat:
+    path: "{{ sql_file_path }}"
+    checksum_algorithm: sha256
+    get_checksum: true
+  register: sql_file_stat
+  delegate_to: localhost
+
+- name: "SOX Evidencia | Validar que el archivo SQL Existe"
+  ansible.builtin.assert:
+    that:
+      - sql_file_stat.stat.exists
+    fail_msg: "ERROR: El archivo SQL NO existe: {{ sql_file_path | basename }} en la ruta: {{ sql_file_path | dirname }}"
+    success_msg: "OK: El archivo SQL SI existe: {{ sql_file_path | basename }} en la ruta: {{ sql_file_path | dirname }}"
+
+- name: "SOX Evidencia | Capturar Metadata del Archivo SQL"
+  ansible.builtin.set_fact:
+    sql_file_evidence:
+      filename: "{{ sql_file_stat.stat.path | basename }}"
+      full_path: "{{ sql_file_stat.stat.path }}"
+      sha256_hash: "{{ sql_file_stat.stat.checksum }}"
+      size_bytes: "{{ sql_file_stat.stat.size }}"
+      last_modified: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(sql_file_stat.stat.mtime) }}"
+      last_modified_epoch: "{{ sql_file_stat.stat.mtime }}"
+      owner: "{{ sql_file_stat.stat.pw_name }}"
+      readable: "{{ sql_file_stat.stat.readable }}"
+
+- name: "SOX Evidencia | Mostrar Hash del Archivo (Evidencia SOX)"
+  ansible.builtin.debug:
+    msg:
+      - "╔═══════════════════════════════════════════════════════════════════╗"
+      - "║  EVIDENCIA DEL ARCHIVO SQL PARA CONTROL SOX: {{ id_control_sox }} ║"
+      - "╚═══════════════════════════════════════════════════════════════════╝"
+      - "Archivo: {{ sql_file_evidence.filename }}"
+      - "------------------------------------------------------------"
+      - "Ruta Completa: {{ sql_file_evidence.full_path }}"
+      - "SHA256 Hash: {{ sql_file_evidence.sha256_hash }}"
+      - "Tamaño (bytes): {{ sql_file_evidence.size_bytes }}"
+      - "Última Modificación: {{ sql_file_evidence.last_modified }} (Epoch: {{ sql_file_evidence.last_modified_epoch }})"
+      - "Propietario: {{ sql_file_evidence.owner }}"
+      - "Legible: {{ sql_file_evidence.readable }}"
+  when: sox_debug | default(false)

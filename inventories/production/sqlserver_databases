@@ -1,0 +1,5 @@
+[sqlserver_databases]
+server_SNSQL ansible_host=12.345.67.89 sqlserver_port=1234 sqlserver_instance=server_SNSQL sqlserver_database=master
+
+[sqlserver_databases:vars]
+ansible_connection=local

@@ -1,0 +1,55 @@
+# ═══════════════════════════════════════════════════════════════
+# SOX COMMON - EJECUTAR SQL SERVER
+# ═══════════════════════════════════════════════════════════════
+- name: "SOX Common | Ejecutar Query SQL Server en Multiple Bases"
+  block:
+    - name: "SOX Common | Inicializar Resultados SQL Server"
+      ansible.builtin.set_fact:
+        query_results_all_sqlserver: []
+
+    - name: "SOX Common | Ejecutar Query en SQL Server"
+      sqlserver_sql_async:
+        host: "{{ hostvars[item].ansible_host }}"
+        port: "{{ hostvars[item].sqlserver_port }}"
+        instance: "{{ hostvars[item].sqlserver_instance | default(omit) }}"
+        database: "{{ hostvars[item].sqlserver_database }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        sql: "{{ sqlserver_query }}"
+      loop: "{{ target_hosts }}"
+      register: sqlserver_results
+      ignore_errors: true
+
+    - name: "SOX Common | DEBUG - Ejecutar Query en SQL Server"
+      ansible.builtin.debug:
+        var: sqlserver_results
+      when: debug_playbook | default(false)
+
+    - name: "SOX Common | Procesar Resultados SQL Server"
+      ansible.builtin.set_fact:
+        query_results_all_sqlserver: >-
+          {{
+            query_results_all_sqlserver + [{
+              'instance_name': hostvars[item.item].sqlserver_instance,
+              'server_host': hostvars[item.item].ansible_host,
+              'query_result': item.msg | default([]) if not item.failed | default(false) else [],
+              'rows_count': (item.msg | default([]) | length) if not item.failed | default(false) else 0,
+              'execution_success': not (item.failed | default(false)),
+              'error_message': item.msg | default('') if item.failed | default(false) else ''
+            }]
+          }}
+      loop: "{{ sqlserver_results.results }}"
+
+  rescue:
+    - name: "SOX Common | Error en Ejecución de Query SQL Server"
+      ansible.builtin.fail:
+        msg: "Error crítico ejecutando query SQL Server: {{ ansible_failed_result.msg }}"
+
+- name: "SOX Common | Retornar Resultados SQL Server"
+  ansible.builtin.set_fact:
+    sqlserver_query_results: "{{ query_results_all_sqlserver }}"
+
+- name: "SOX Common | DEBUG - Retornar Resultados Consolidados SQL Server"
+  ansible.builtin.debug:
+    var: sqlserver_query_results
+  when: debug_playbook | default(false)

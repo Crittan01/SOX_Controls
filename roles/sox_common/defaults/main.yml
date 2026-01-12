@@ -1,0 +1,15 @@
+---
+# defaults file for roles/sox_common
+
+# Timeout para operaciones Oracle (segundos)
+oracle_default_timeout: 300
+
+# Número de reintentos
+default_retry_count: 3
+default_retry_delay: 5
+
+# Directorio temporal
+temp_directory: /tmp/sox_reports
+
+# Formato de logs
+log_timestamp_format: "%Y-%m-%d %H:%M:%S"
