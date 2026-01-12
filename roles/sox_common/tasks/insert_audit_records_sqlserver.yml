@@ -11,3 +11,60 @@
           - audit_records_sqlserver  | length > 0
         fail_msg: "ERROR: No hay registros SQL Server para insertar en la base de auditoría"
         success_msg: "OK: {{ audit_records_sqlserver | length }} registro(s) SQL Server listos para inserción"
+
+    - name: "SOX Audit | DEBUG - Mostrar estructura de primer registro"
+      ansible.builtin.debug:
+        msg:
+          - "Estructura del primer registro SQL Server:"
+          - "  [0] event_time: {{ audit_records_sqlserver[0][0] }}"
+          - "  [1] action_id: {{ audit_records_sqlserver[0][1] }}"
+          - "  [2] class_type: {{ audit_records_sqlserver[0][2] }}"
+          - "  [3] session_server_principal_name: {{ audit_records_sqlserver[0][3] }}"
+          - "  [4] target_server_principal_name: {{ audit_records_sqlserver[0][4] }}"
+          - "  [5] server_instance_name: {{ audit_records_sqlserver[0][5] }}"
+          - "  [6] database_name: {{ audit_records_sqlserver[0][6] }}"
+          - "  [7] object_name: {{ audit_records_sqlserver[0][7] }}"
+          - "  [8] statement (primeros 100 chars): {{ audit_records_sqlserver[0][8][:100] }}"
+          - "  [9] file_name: {{ audit_records_sqlserver[0][9] }}"
+      when:
+        - debug_playbook | default(false)
+        - audit_records_sqlserver | length > 0
+
+    - name: "SOX Audit | Construir Lista de INSERTs para SQL Server Data"
+      ansible.builtin.set_fact:
+        insert_statements_sqlserver: "{{ insert_statements_sqlserver | default([]) + [insert_sql] }}"
+      vars:
+        # MAPEO CORRECTO DE COLUMNAS SQL SERVER
+        safe_event_time: "{{ item[0] if (item[0] is not none and item[0] | string | length > 0 and item[0] | string != 'None') else '' }}"
+        safe_action_id: "{{ item[1] | default('') | string | replace(\"'\", \"''\") }}"
+        safe_class_type: "{{ item[2] | default('') | string | replace(\"'\", \"''\") }}"
+        safe_session_server_principal_name: "{{ item[3] | default('') | string | replace(\"'\", \"''\") }}"
+        safe_target_server_principal_name: "{{ item[4] | default('') | string | replace(\"'\", \"''\") }}"
+        safe_server_instance_name: "{{ item[5] | default('') | string | replace(\"'\", \"''\") }}"
+        safe_database_name: "{{ item[6] | default('') | string | replace(\"'\", \"''\") }}"
+        safe_object_name: "{{ item[7] | default('') | string | replace(\"'\", \"''\") }}"
+        safe_statement: "{{ item[8] | default('') | string | replace(\"'\", \"''\") }}"
+        safe_file_name: "{{ item[9] | default('') | string | replace(\"'\", \"''\") }}"
+
+        # Formato de timestamp Oracle-compatible
+        timestamp_value: "{{ \"TO_TIMESTAMP('\" ~ safe_event_time ~ \"', 'YYYY-MM-DD''''T''''HH24:MI:SS.FF')\" if safe_event_time | length > 0 else 'NULL' }}"
+
+        insert_sql: >-
+          INSERT INTO {{ audit_table }}
+          (event_time, action_id, class_type, session_server_principal_name,
+          target_server_principal_name, server_instance_name, database_name,
+          object_name, statement, file_name)
+          VALUES
+          ({{ timestamp_value }},
+          '{{ safe_action_id }}',
+          '{{ safe_class_type }}',
+          '{{ safe_session_principal }}',
+          '{{ safe_target_principal }}',
+          '{{ safe_server_instance }}',
+          '{{ safe_database_name }}',
+          '{{ safe_object_name }}',
+          '{{ safe_statement }}',
+          '{{ safe_file_name }}')
+      loop: "{{ audit_records_sqlserver }}"
+      loop_control:
+        label: "{{ item[1] | default('N/A') | trim }}@{{ item[5] | default('unknown') }}"
