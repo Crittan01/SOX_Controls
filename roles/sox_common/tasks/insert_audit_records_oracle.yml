@@ -33,30 +33,81 @@
         hostname: "{{ audit_db_config.host }}"
         port: "{{ audit_db_config.port }}"
         service_name: "{{ audit_db_config.service_name }}"
-        username: "{{ ansible_user }}"
-        password: "{{ ansible_password }}"
+        username: "{{ oracle_username }}"
+        password: "{{ oracle_password }}"
         mode: "{{ audit_db_config.mode | default('normal') }}"
         sql_list: "{{ insert_statements }}"
         max_workers: 5
       register: audit_insert_result
 #      no_log: true
 
+    - name: "SOX Audit | DEBUG - Resultado de Inserciones"
+      ansible.builtin.debug:
+        msg:
+          - "════════════════════════════════════════════════════════"
+          - "RESULTADO DE INSERCIÓN EN TABLA AUDIT"
+          - "════════════════════════════════════════════════════════"
+          - "Total Statements: {{ audit_insert_result.summary.total_statements }}"
+          - "Exitosos: {{ audit_insert_result.summary.successful }}"
+          - "Fallidos: {{ audit_insert_result.summary.failed }}"
+          - "Tasa de Éxito: {{ audit_insert_result.summary.success_rate }}%"
+          - "════════════════════════════════════════════════════════"
+      when: debug_playbook | default(false)
+
     - name: "SOX Audit | Validar Inserción Exitosa"
       ansible.builtin.assert:
         that:
           - audit_insert_result is succeeded
+          - audit_insert_result.summary is defined
+          - audit_insert_result.summary.successful | int > 0
+          - audit_insert_result.summary.failed | int == 0
         fail_msg: |
-          ERROR CRÍTICO: Fallo en inserción de registros
+          ════════════════════════════════════════════════════════
+          ERROR CRÍTICO: Fallo en inserción de registros de auditoría
+          ════════════════════════════════════════════════════════
           Tabla: {{ audit_table }}
-          Error: {{ audit_insert_result.msg | default('Unknown') }}
-        success_msg: "OK: {{ audit_records_oracle | length }} registros insertados en {{ audit_table }}"
+          Host: {{ audit_db_config.host }}:{{ audit_db_config.port }}
+          Service: {{ audit_db_config.service_name }}
 
-    - name: "SOX-046 | DEBUG - Ejecutar Inserciones en AUDIT"
-      ansible.builtin.debug:
-        var: audit_insert_result
-      when: debug_playbook | default(false)
+          Estadísticas:
+            - Total INSERTs: {{ audit_insert_result.summary.total_statements | default(0) }}
+            - Exitosos: {{ audit_insert_result.summary.successful | default(0) }}
+            - Fallidos: {{ audit_insert_result.summary.failed | default(0) }}
+
+          Primeros Errores:
+          {% if audit_insert_result.msg is defined and audit_insert_result.msg.failed_statements is defined %}
+          {% for error in audit_insert_result.msg.failed_statements[:3] %}
+            - Thread {{ error.thread_id }}: {{ error.error | default('Error desconocido') }}
+          {% endfor %}
+          {% else %}
+            - No hay detalles de errores disponibles
+          {% endif %}
+
+          ACCIÓN REQUERIDA:
+          1. Verificar credenciales del usuario: {{ oracle_username }}
+          2. Validar que el usuario NO esté bloqueado (ORA-28000)
+          3. Verificar permisos INSERT en {{ audit_table }}
+          4. Revisar logs completos en AAP Job ID: {{ tower_job_id | default('N/A') }}
+
+          NINGÚN REGISTRO FUE INSERTADO EN AUDITORÍA
+          ════════════════════════════════════════════════════════
+        success_msg: |
+          Inserción exitosa: {{ audit_insert_result.summary.successful }} registros insertados en {{ audit_table }}
 
     - name: "SOX Audit | Retornar Resultado"
       ansible.builtin.set_fact:
-        records_inserted: "{{ audit_records_oracle | length }}"
+        records_inserted: "{{ audit_insert_result.summary.successful }}"
+        records_failed: "{{ audit_insert_result.summary.failed }}"
         insertion_success: true
+        insertion_details: "{{ audit_insert_result.summary }}"
+
+  rescue:
+    - name: "SOX Audit | ERROR - Fallo en Inserción"
+      ansible.builtin.set_fact:
+        records_inserted: 0
+        records_failed: "{{ audit_records_oracle | length }}"
+        insertion_success: false
+
+    - name: "SOX Audit | Fallar Playbook si Inserción Falló"
+      ansible.builtin.fail:
+        msg: "Inserción en tabla AUDIT falló - Ver detalles arriba"
