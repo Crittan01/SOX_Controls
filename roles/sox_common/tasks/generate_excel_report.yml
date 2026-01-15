@@ -28,11 +28,11 @@
   sox_generate_excel:
     output_file: "{{ excel_output_file }}"
     sheet_name: "{{ excel_sheet_name }}"
-    headers: "{{ excel_headers }}"
-    data: "{{ excel_data }}"
-    data_keys: "{{ excel_data_keys }}"
+    headers: "{{ excel_headers | list }}"
+    data: "{{ excel_data | list }}"
+    data_keys: "{{ excel_data_keys | list }}"
     title: "{{ excel_title | default(omit) }}"
-    metadata: "{{ excel_metadata | default([]) }}"
+    metadata: "{{ excel_metadata | default([]) | list }}"
   register: excel_result
 
 - name: "Excel | Mostrar resultado de generación"

@@ -98,10 +98,12 @@
       </p>
     </div>
 
-    {# Estadísticas Globales #}
+    {# Estadísticas Globales - Adaptativo Oracle/SQL Server #}
     <div class="info-box">
       <p><strong>Resumen de Ejecución:</strong></p>
       <div class="stats-grid">
+        {% if email_data.statistics.total_databases is defined %}
+        {# ORACLE: Mostrar bases de datos #}
         <div class="stat-item">
           <div class="stat-value">{{ email_data.statistics.total_databases }}</div>
           <div class="stat-label">Bases Oracle</div>
@@ -110,21 +112,41 @@
           <div class="stat-value context-ok">{{ email_data.statistics.databases_processed }}</div>
           <div class="stat-label">Procesadas OK</div>
         </div>
+        {% else %}
+        {# SQL SERVER: Mostrar instancias y bases #}
+        <div class="stat-item">
+          <div class="stat-value">{{ email_data.statistics.unique_instances }}</div>
+          <div class="stat-label">Instancias SQL</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">{{ email_data.statistics.unique_databases }}</div>
+          <div class="stat-label">Bases de Datos</div>
+        </div>
+        {% endif %}
         <div class="stat-item">
           <div class="stat-value {% if email_data.statistics.total_users_created | int > 0 %}context-alert{% endif %}">{{ email_data.statistics.total_users_created }}</div>
           <div class="stat-label">Usuarios Creados</div>
         </div>
         <div class="stat-item">
-          <div class="stat-value">{{ email_data.statistics.records_inserted_audit }}</div>
+          <div class="stat-value context-ok">{{ email_data.statistics.records_inserted_audit }}</div>
           <div class="stat-label">Registros Auditoría</div>
         </div>
+        {% if email_data.statistics.records_failed_audit is defined and email_data.statistics.records_failed_audit | int > 0 %}
+        <div class="stat-item">
+          <div class="stat-value context-error">{{ email_data.statistics.records_failed_audit }}</div>
+          <div class="stat-label">Registros Fallidos</div>
+        </div>
+        {% endif %}
       </div>
     </div>
 
-    {# Detalle de Usuarios si hay resultados #}
+    {# Detalle de Usuarios si hay resultados - Adaptativo Oracle/SQL Server #}
     {% if email_data.statistics.total_users_created | int > 0 %}
     <div class="info-box">
       <p><strong>Detalle de Usuarios Creados (Mes Anterior):</strong></p>
+      
+      {% if email_data.users[0].base_de_datos is defined %}
+      {# TABLA ORACLE #}
       <table>
         <thead>
           <tr>
@@ -154,12 +176,51 @@
           {% if email_data.users | length > 10 %}
           <tr>
             <td colspan="7" style="text-align: center; background-color: #fff3cd; font-style: italic; padding: 10px;">
-              ... y {{ email_data.users | length - 10 }} usuarios adicionales (consultar base de auditoría: {{ email_data.statistics.audit_table_name }} o adjunto correo (Excel))
+              ... y {{ email_data.users | length - 10 }} usuarios adicionales (consultar base de auditoría: {{ email_data.statistics.audit_table_name }} o adjunto Excel)
             </td>
           </tr>
           {% endif %}
         </tbody>
       </table>
+      {% else %}
+      {# TABLA SQL SERVER #}
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha Evento</th>
+            <th>Usuario Sesión</th>
+            <th>Usuario Creado</th>
+            <th>Instancia SQL</th>
+            <th>Base de Datos</th>
+            <th>Statement</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in email_data.users[:10] %}
+          <tr>
+            <td style="font-size: 10px;">{{ user.event_time }}</td>
+            <td style="font-size: 11px;">{{ user.session_server_principal_name }}</td>
+            <td><strong>{{ user.target_server_principal_name if user.target_server_principal_name else '<em style="color:#999;">N/A</em>' }}</strong></td>
+            <td style="font-size: 11px;">{{ user.server_instance_name }}</td>
+            <td>{{ user.database_name }}</td>
+            <td style="font-size: 10px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ user.statement }}">
+              {{ user.statement[:50] }}{% if user.statement | length > 50 %}...{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% if email_data.users | length > 10 %}
+          <tr>
+            <td colspan="6" style="text-align: center; background-color: #fff3cd; font-style: italic; padding: 10px;">
+              ... y {{ email_data.users | length - 10 }} usuarios adicionales (consultar adjunto Excel o base de auditoría: {{ email_data.statistics.audit_table_name }})
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+      <p style="font-size: 11px; color: #666; margin-top: 10px;">
+        <strong>Nota:</strong> Columna "Usuario Creado" puede estar vacía si el comando CREATE USER falló o fue revertido. Revisar columna "Statement" para más detalles.
+      </p>
+      {% endif %}
     </div>
 
     {# Estadísticas por Estado #}
@@ -232,27 +293,38 @@
     </div>
     {% endif %}
 
-    {# Trazabilidad #}
+    {# Trazabilidad - Adaptativo Oracle/SQL Server #}
     <div class="info-box">
       <p><strong>Trazabilidad y Auditoría:</strong></p>
       <ul style="margin: 10px 0; padding-left: 20px; font-size: 12px;">
+        {% if email_data.statistics.staging_table_name is defined %}
+        {# SQL SERVER: Arquitectura de 2 pasos #}
+        <li><strong>Paso 1 (Daily):</strong> Recolección diaria de eventos desde SQL Server → Tabla Staging: <code>{{ email_data.statistics.staging_table_name }}</code></li>
+        <li><strong>Paso 2 (Monthly):</strong> Consolidación mensual desde Staging → Tabla Final: <code>{{ email_data.statistics.audit_table_name }}</code></li>
+        {% else %}
+        {# ORACLE: Proceso directo #}
         <li>Registros históricos almacenados en: <code>{{ email_data.statistics.audit_table_name }}</code></li>
+        {% endif %}
         <li>Período auditado: Mes anterior completo (desde primer día hasta último día del mes)</li>
         <li>Query ejecutado: <code>{{ email_data.metadata.sql_file_name }}</code> (SHA256: <code style="font-size: 10px;">{{ email_data.metadata.sql_file_sha256 }}</code>)</li>
         {% if email_data.metadata.aap_job_id != 'localmente_no_AAP' %}<li>Para auditar ejecución completa: <a href="{{ email_data.metadata.aap_job_url }}">Ver Job {{ email_data.metadata.aap_job_id }} en AAP</a></li>{% else %}<li>Ejecución local (no disponible en AAP)</li>{% endif %}
       </ul>
     </div>
 
-    {# Query Ejecutado (expandible) #}
+    {# Query Ejecutado (expandible) - Adaptativo Oracle/SQL Server #}
     <div class="info-box" style="background-color: #f0f0f0;">
       <p><strong>📄 Query SQL Ejecutado:</strong></p>
       <pre style="background-color: #fff; padding: 10px; border: 1px solid #ccc; overflow-x: auto; font-size: 10px; max-height: 300px;">{{ email_data.metadata.query_executed }}</pre>
       <p style="font-size: 10px; color: #666; margin-top: 5px;">
+        {% if email_data.statistics.staging_table_name is defined %}
+        <em>Este query consulta la tabla staging ({{ email_data.statistics.staging_table_name }}) poblada por el proceso Daily. El hash SHA256 de este archivo es: {{ email_data.metadata.sql_file_sha256 }}</em>
+        {% else %}
         <em>Este es el query exacto ejecutado en todas las bases Oracle. El hash SHA256 de este archivo es: {{ email_data.metadata.sql_file_sha256 }}</em>
+        {% endif %}
       </p>
     </div>
 
-    <p style="margin-top: 20px;">Este control SOX ha sido migrado desde <strong>Stored Procedures SQL</strong> a <strong>Ansible Automation Platform</strong> siguiendo mejores prácticas de infraestructura como código y eliminando el uso de DB Links.</p>
+    <p style="margin-top: 20px;">Este control SOX ha sido migrado desde <strong>Stored Procedures SQL</strong> a <strong>Ansible Automation Platform</strong> siguiendo mejores prácticas de infraestructura como código{% if email_data.statistics.staging_table_name is defined %} con arquitectura de 2 pasos (Daily + Monthly){% else %} y eliminando el uso de DB Links{% endif %}.</p>
 
     <div class="footer">
       <p>Este es un correo automático, por favor no responder</p>

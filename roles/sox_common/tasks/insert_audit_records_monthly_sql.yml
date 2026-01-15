@@ -1,0 +1,147 @@
+---
+# ═══════════════════════════════════════════════════════════════
+# SOX COMMON - INSERTAR REGISTROS MENSUALES SQL SERVER EN AUDIT
+# ═══════════════════════════════════════════════════════════════
+# Descripción: Inserta registros del reporte mensual de usuarios
+#              creados en SQL Server desde staging a tabla final
+# Origen: SELECT de SOX_EstadisticasSQLSERVER (Oracle staging)
+# Destino: SURA_SOX_USUARIOS_CREADOS_SQL (Oracle audit)
+# Campos: 8 columnas (sin action_id, class_type del daily)
+# ═══════════════════════════════════════════════════════════════
+- name: "SOX Audit Monthly | Insertar Registros Mensuales SQL Server"
+  block:
+    - name: "SOX Audit Monthly | Validar que hay Registros para Insertar"
+      ansible.builtin.assert:
+        that:
+          - audit_records_monthly is defined
+          - audit_records_monthly | length > 0
+        fail_msg: "ERROR: No hay registros mensuales para insertar en la tabla final"
+        success_msg: "OK: {{ audit_records_monthly | length }} registro(s) listos para inserción en tabla final"
+
+    - name: "SOX Audit Monthly | DEBUG - Mostrar estructura del primer registro"
+      ansible.builtin.debug:
+        msg:
+          - "Estructura del primer registro (desde staging):"
+          - "  [0] event_time: {{ audit_records_monthly[0][0] }}"
+          - "  [1] session_server_principal_name: {{ audit_records_monthly[0][1] }}"
+          - "  [2] target_server_principal_name: {{ audit_records_monthly[0][2] }}"
+          - "  [3] server_instance_name: {{ audit_records_monthly[0][3] }}"
+          - "  [4] database_name: {{ audit_records_monthly[0][4] }}"
+          - "  [5] object_name: {{ audit_records_monthly[0][5] }}"
+          - "  [6] statement: {{ audit_records_monthly[0][6][:100] | default('') }}..."
+          - "  [7] file_name: {{ audit_records_monthly[0][7] }}"
+      when:
+        - debug_playbook | default(false)
+        - audit_records_monthly | length > 0
+
+    - name: "SOX Audit Monthly | Inicializar Lista de INSERTs"
+      ansible.builtin.set_fact:
+        insert_statements_monthly: []
+
+    - name: "SOX Audit Monthly | Construir Lista de INSERTs"
+      ansible.builtin.set_fact:
+        insert_statements_monthly: "{{ insert_statements_monthly + [insert_sql] }}"
+      vars:
+        # MAPEO DE COLUMNAS - 8 campos del reporte mensual
+        # Manejo especial de valores None/NULL de Oracle
+        safe_event_time: "{{ item[0] if (item[0] is not none and item[0] | string | length > 0 and item[0] | string != 'None') else '' }}"
+        safe_session_server_principal_name: "{{ (item[1] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_target_server_principal_name: "{{ (item[2] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_server_instance_name: "{{ (item[3] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_database_name: "{{ (item[4] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_object_name: "{{ (item[5] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_statement: "{{ (item[6] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_file_name: "{{ (item[7] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+
+        # Formato de timestamp Oracle-compatible
+        timestamp_format: 'YYYY-MM-DD"T"HH24:MI:SS.FF6'
+        timestamp_value: "{{ \"TO_TIMESTAMP('\" ~ safe_event_time ~ \"', '\" ~ timestamp_format ~ \"')\" if safe_event_time | length > 0 else 'NULL' }}"
+
+        insert_sql: >-
+          INSERT INTO {{ audit_table }}
+          (event_time, session_server_principal_name, target_server_principal_name,
+          server_instance_name, database_name, object_name, statement, file_name)
+          VALUES
+          ({{ timestamp_value }},
+          '{{ safe_session_server_principal_name }}',
+          '{{ safe_target_server_principal_name }}',
+          '{{ safe_server_instance_name }}',
+          '{{ safe_database_name }}',
+          '{{ safe_object_name }}',
+          '{{ safe_statement }}',
+          '{{ safe_file_name }}')
+      loop: "{{ audit_records_monthly }}"
+      loop_control:
+        label: "{{ item[2] | default('N/A') }}@{{ item[3] | default('unknown') }}"
+
+    - name: "SOX Audit Monthly | DEBUG - Mostrar primer INSERT generado"
+      ansible.builtin.debug:
+        msg: "{{ insert_statements_monthly[0] }}"
+      when:
+        - debug_playbook | default(false)
+        - insert_statements_monthly | length > 0
+
+    - name: "SOX Audit Monthly | Ejecutar Inserciones en Tabla Final (Oracle)"
+      oracle_sql_async:
+        hostname: "{{ audit_db_config.host }}"
+        port: "{{ audit_db_config.port }}"
+        service_name: "{{ audit_db_config.service_name }}"
+        username: "{{ oracle_db_username }}"
+        password: "{{ oracle_db_password }}"
+        mode: "{{ audit_db_config.mode | default('normal') }}"
+        sql_list: "{{ insert_statements_monthly }}"
+        max_workers: 5
+      register: audit_insert_monthly_result
+
+    - name: "SOX Audit Monthly | DEBUG - Resultado de Inserciones"
+      ansible.builtin.debug:
+        msg:
+          - "════════════════════════════════════════════════════════"
+          - "RESULTADO DE INSERCIÓN - TABLA FINAL MENSUAL"
+          - "════════════════════════════════════════════════════════"
+          - "Tabla: {{ audit_table }}"
+          - "Total Statements: {{ audit_insert_monthly_result.summary.total_statements }}"
+          - "Exitosos: {{ audit_insert_monthly_result.summary.successful }}"
+          - "Fallidos: {{ audit_insert_monthly_result.summary.failed }}"
+          - "Tasa de Éxito: {{ audit_insert_monthly_result.summary.success_rate }}%"
+          - "════════════════════════════════════════════════════════"
+      when: debug_playbook | default(false)
+
+    - name: "SOX Audit Monthly | Validar Inserción Exitosa"
+      ansible.builtin.assert:
+        that:
+          - audit_insert_monthly_result is succeeded
+          - audit_insert_monthly_result.summary is defined
+          - audit_insert_monthly_result.summary.successful | int > 0
+        fail_msg: |
+          ════════════════════════════════════════════════════════
+          ERROR CRÍTICO: Falló la inserción en tabla final mensual
+          ════════════════════════════════════════════════════════
+          Tabla: {{ audit_table }}
+          Host: {{ audit_db_config.host }}:{{ audit_db_config.port }}
+          Service: {{ audit_db_config.service_name }}
+
+          Estadísticas:
+            - Total INSERTs: {{ audit_insert_monthly_result.summary.total_statements | default(0) }}
+            - Exitosos: {{ audit_insert_monthly_result.summary.successful | default(0) }}
+            - Fallidos: {{ audit_insert_monthly_result.summary.failed | default(0) }}
+
+  rescue:
+    - name: "SOX Audit Monthly | Error en Inserción"
+      ansible.builtin.fail:
+        msg: |
+          ════════════════════════════════════════════════════════
+          ERROR: Falló la inserción de registros mensuales
+          ════════════════════════════════════════════════════════
+          Error: {{ ansible_failed_result.msg | default('Error desconocido') }}
+          Tabla destino: {{ audit_table }}
+
+# Exportar resultados para uso posterior
+- name: "SOX Audit Monthly | Exportar Resultados de Inserción"
+  ansible.builtin.set_fact:
+    monthly_insert_results:
+      total_records: "{{ audit_records_monthly | length }}"
+      records_inserted: "{{ audit_insert_monthly_result.summary.successful | default(0) }}"
+      records_failed: "{{ audit_insert_monthly_result.summary.failed | default(0) }}"
+      success_rate: "{{ audit_insert_monthly_result.summary.success_rate | default(0) }}"
+      table_name: "{{ audit_table }}"

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    {% include 'partials/email_styles.j2' %}
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h2 style="margin: 0;">{{ email_subject }}</h2>
+    </div>
+
+    {# Banner de estado #}
+    {% if email_data.statistics.total_users_created | int > 0 %}
+    <div class="success">
+      Control ejecutado exitosamente - {{ email_data.statistics.total_users_created }} usuarios detectados
+    </div>
+    {% else %}
+    <div class="success">
+      No se detectaron usuarios creados en el período auditado
+    </div>
+    {% endif %}
+
+    <p>Estimado equipo de Auditoría,</p>
+
+    <p>Adjunto encontrará el resultado del control <strong>{{ email_subject }}</strong> ejecutado el <strong>{{ email_data.metadata.execution_date }} a las {{ email_data.metadata.execution_time }}</strong>.</p>
+
+    {# Información del Control SOX #}
+    <div class="info-box">
+      <p><strong>Información del Control:</strong></p>
+      <ul style="margin: 10px 0; padding-left: 20px;">
+        <li><strong>Control ID:</strong> {{ email_data.metadata.control_id }}</li>
+        <li><strong>Control:</strong> {{ email_data.metadata.control_name }}</li>
+        <li><strong>Descripción:</strong> {{ email_data.metadata.control_description }}</li>
+        <li><strong>Procedure Original:</strong> {{ email_data.metadata.procedure_original }}</li>
+        <li><strong>Período:</strong> Mes Anterior Completo</li>
+        <li><strong>Fecha de Ejecución:</strong> {{ email_data.metadata.execution_date }} {{ email_data.metadata.execution_time }}</li>
+        <li><strong>Job ID (AAP):</strong> {% if email_data.metadata.aap_job_id != 'localmente_no_AAP' %}<a href="{{ email_data.metadata.aap_job_url }}">{{ email_data.metadata.aap_job_id }}</a>{% else %}{{ email_data.metadata.aap_job_id }}{% endif %}</li>
+        <li><strong>Usuario Ejecutor:</strong> {{ email_data.metadata.aap_executor }}</li>
+      </ul>
+    </div>
+
+    {# EVIDENCIA DE INTEGRIDAD (LO MÁS IMPORTANTE PARA SOX) #}
+    <div class="info-box" style="border-left: 4px solid #0066cc;">
+      <p><strong>EVIDENCIA DE INTEGRIDAD (SOX Compliance):</strong></p>
+      <table style="margin: 10px 0;">
+        <tr>
+          <th style="text-align: left; width: 40%;">Componente</th>
+          <th style="text-align: left;">Valor</th>
+        </tr>
+        <tr>
+          <td><strong>Archivo SQL Ejecutado:</strong></td>
+          <td><code>{{ email_data.metadata.sql_file_name }}</code></td>
+        </tr>
+        <tr style="background-color: #fffacd;">
+          <td><strong>SHA256 Hash (Evidencia):</strong></td>
+          <td><code style="font-size: 11px;">{{ email_data.metadata.sql_file_sha256 }}</code></td>
+        </tr>
+        <tr>
+          <td><strong>Última Modificación SQL:</strong></td>
+          <td>{{ email_data.metadata.sql_file_last_modified }}</td>
+        </tr>
+        <tr>
+          <td><strong>Tamaño del Archivo:</strong></td>
+          <td>{{ email_data.metadata.sql_file_size_bytes }} bytes</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="height: 10px;"></td>
+        </tr>
+        <tr>
+          <td><strong>Git Project Revision:</strong></td>
+          <td><code>{{ email_data.metadata.aap_project_revision }}</code></td>
+        </tr>
+        <tr>
+          <td><strong>AAP Job Template:</strong></td>
+          <td>{{ email_data.metadata.aap_job_template }}</td>
+        </tr>
+        <tr>
+          <td><strong>Ansible Version:</strong></td>
+          <td>{{ email_data.metadata.ansible_version }}</td>
+        </tr>
+        <tr>
+          <td><strong>Role Version:</strong></td>
+          <td>{{ email_data.metadata.role_version }}</td>
+        </tr>
+      </table>
+      <p style="font-size: 11px; color: #666; margin-top: 10px; background-color: #f8f9fa; padding: 10px; border-left: 3px solid #0066cc;">
+        <strong>IMPORTANTE PARA AUDITORÍA:</strong><br>
+        El hash SHA256 del archivo SQL ejecutado es <strong>{{ email_data.metadata.sql_file_sha256 }}</strong>. 
+        Este hash permite verificar que el query no fue modificado desde su última auditoría. 
+        Para validar la integridad, ejecute: <code>sha256sum {{ email_data.metadata.sql_file_name }}</code>
+      </p>
+    </div>
+
+    {# Estadísticas Globales SQL Server #}
+    <div class="info-box">
+      <p><strong>Resumen de Ejecución:</strong></p>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value">{{ email_data.statistics.unique_instances }}</div>
+          <div class="stat-label">Instancias SQL</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">{{ email_data.statistics.unique_databases }}</div>
+          <div class="stat-label">Bases de Datos</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value {% if email_data.statistics.total_users_created | int > 0 %}context-alert{% endif %}">{{ email_data.statistics.total_users_created }}</div>
+          <div class="stat-label">Usuarios Creados</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value context-ok">{{ email_data.statistics.records_inserted_audit }}</div>
+          <div class="stat-label">Registros Auditoría</div>
+        </div>
+        {% if email_data.statistics.records_failed_audit | int > 0 %}
+        <div class="stat-item">
+          <div class="stat-value context-error">{{ email_data.statistics.records_failed_audit }}</div>
+          <div class="stat-label">Registros Fallidos</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Detalle de Usuarios si hay resultados #}
+    {% if email_data.statistics.total_users_created | int > 0 %}
+    <div class="info-box">
+      <p><strong>Detalle de Usuarios Creados en SQL Server (Mes Anterior):</strong></p>
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha Evento</th>
+            <th>Usuario Sesión</th>
+            <th>Usuario Creado</th>
+            <th>Instancia SQL</th>
+            <th>Base de Datos</th>
+            <th>Statement</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in email_data.users[:10] %}
+          <tr>
+            <td style="font-size: 10px;">{{ user.event_time }}</td>
+            <td style="font-size: 11px;">{{ user.session_server_principal_name }}</td>
+            <td><strong>{{ user.target_server_principal_name if user.target_server_principal_name else '<em style="color:#999;">N/A</em>' }}</strong></td>
+            <td style="font-size: 11px;">{{ user.server_instance_name }}</td>
+            <td>{{ user.database_name }}</td>
+            <td style="font-size: 10px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ user.statement }}">
+              {{ user.statement[:50] }}{% if user.statement | length > 50 %}...{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% if email_data.users | length > 10 %}
+          <tr>
+            <td colspan="6" style="text-align: center; background-color: #fff3cd; font-style: italic; padding: 10px;">
+              ... y {{ email_data.users | length - 10 }} usuarios adicionales (consultar adjunto Excel o base de auditoría: {{ email_data.statistics.audit_table_name }})
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+      <p style="font-size: 11px; color: #666; margin-top: 10px;">
+        <strong>Nota:</strong> Columna "Usuario Creado" puede estar vacía si el comando CREATE USER falló o fue revertido. Revisar columna "Statement" para más detalles.
+      </p>
+    </div>
+    {% endif %}
+
+    {# Trazabilidad #}
+    <div class="info-box">
+      <p><strong>Trazabilidad y Auditoría (Arquitectura de 2 Pasos):</strong></p>
+      <ul style="margin: 10px 0; padding-left: 20px; font-size: 12px;">
+        <li><strong>Paso 1 (Daily):</strong> Recolección diaria de eventos desde SQL Server → Tabla Staging: <code>{{ email_data.statistics.staging_table_name }}</code></li>
+        <li><strong>Paso 2 (Monthly):</strong> Consolidación mensual desde Staging → Tabla Final: <code>{{ email_data.statistics.audit_table_name }}</code></li>
+        <li>Período auditado: Mes anterior completo (desde primer día hasta último día del mes)</li>
+        <li>Query ejecutado: <code>{{ email_data.metadata.sql_file_name }}</code> (SHA256: <code style="font-size: 10px;">{{ email_data.metadata.sql_file_sha256 }}</code>)</li>
+        {% if email_data.metadata.aap_job_id != 'localmente_no_AAP' %}<li>Para auditar ejecución completa: <a href="{{ email_data.metadata.aap_job_url }}">Ver Job {{ email_data.metadata.aap_job_id }} en AAP</a></li>{% else %}<li>Ejecución local (no disponible en AAP)</li>{% endif %}
+      </ul>
+    </div>
+
+    {# Query Ejecutado (expandible) #}
+    <div class="info-box" style="background-color: #f0f0f0;">
+      <p><strong>📄 Query SQL Ejecutado (Consulta a Staging):</strong></p>
+      <pre style="background-color: #fff; padding: 10px; border: 1px solid #ccc; overflow-x: auto; font-size: 10px; max-height: 300px;">{{ email_data.metadata.query_executed }}</pre>
+      <p style="font-size: 10px; color: #666; margin-top: 5px;">
+        <em>Este query consulta la tabla staging ({{ email_data.statistics.staging_table_name }}) poblada por el proceso Daily. El hash SHA256 de este archivo es: {{ email_data.metadata.sql_file_sha256 }}</em>
+      </p>
+    </div>
+
+    <p style="margin-top: 20px;">Este control SOX ha sido migrado desde <strong>Stored Procedures SQL</strong> a <strong>Ansible Automation Platform</strong> siguiendo mejores prácticas de infraestructura como código con arquitectura de 2 pasos (Daily + Monthly).</p>
+
+    <div class="footer">
+      <p>Este es un correo automático, por favor no responder</p>
+      <p class="team-name">{{ team_name | default('Equipo de Automatización - NTT Data') }}</p>
+      <p style="margin-top: 5px;">
+        Generado por: Ansible Automation Platform | 
+        Role Version: {{ email_data.metadata.role_version }} | 
+        Project: {{ email_data.metadata.aap_project_revision }}
+      </p>
+      <p style="margin-top: 5px; font-size: 10px;">
+        Evidencia: SHA256 {{ email_data.metadata.sql_file_sha256 }} | 
+        Job: {% if email_data.metadata.aap_job_id != 'localmente_no_AAP' %}<a href="{{ email_data.metadata.aap_job_url }}">{{ email_data.metadata.aap_job_id }}</a>{% else %}{{ email_data.metadata.aap_job_id }}{% endif %}
+      </p>
+    </div>
+  </div>
+</body>
+</html>

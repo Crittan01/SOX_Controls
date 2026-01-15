@@ -73,7 +73,7 @@ EXAMPLES = '''
     port: 1436
     instance: GIGA
     database: master
-    username: USERSTAT
+    username: SURASTAT
     password: secret
     sql: 'SELECT @@VERSION'
 
@@ -81,7 +81,7 @@ EXAMPLES = '''
 - sqlserver_sql_async:
     host: 10.205.24.153
     port: 1436
-    username: USERSTAT
+    username: SURASTAT
     password: secret
     database: master
     sql_list:

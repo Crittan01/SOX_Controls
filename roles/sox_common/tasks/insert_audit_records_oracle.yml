@@ -33,8 +33,8 @@
         hostname: "{{ audit_db_config.host }}"
         port: "{{ audit_db_config.port }}"
         service_name: "{{ audit_db_config.service_name }}"
-        username: "{{ oracle_username }}"
-        password: "{{ oracle_password }}"
+        username: "{{ oracle_db_username }}"
+        password: "{{ oracle_db_password }}"
         mode: "{{ audit_db_config.mode | default('normal') }}"
         sql_list: "{{ insert_statements }}"
         max_workers: 5
@@ -60,10 +60,9 @@
           - audit_insert_result is succeeded
           - audit_insert_result.summary is defined
           - audit_insert_result.summary.successful | int > 0
-          - audit_insert_result.summary.failed | int == 0
         fail_msg: |
           ════════════════════════════════════════════════════════
-          ERROR CRÍTICO: Fallo en inserción de registros de auditoría
+          ERROR CRÍTICO: TODOS los registros de auditoría fallaron
           ════════════════════════════════════════════════════════
           Tabla: {{ audit_table }}
           Host: {{ audit_db_config.host }}:{{ audit_db_config.port }}
@@ -84,15 +83,28 @@
           {% endif %}
 
           ACCIÓN REQUERIDA:
-          1. Verificar credenciales del usuario: {{ oracle_username }}
+          1. Verificar credenciales del usuario: {{ oracle_db_username }}
           2. Validar que el usuario NO esté bloqueado (ORA-28000)
           3. Verificar permisos INSERT en {{ audit_table }}
           4. Revisar logs completos en AAP Job ID: {{ tower_job_id | default('N/A') }}
 
           NINGÚN REGISTRO FUE INSERTADO EN AUDITORÍA
           ════════════════════════════════════════════════════════
-        success_msg: |
-          Inserción exitosa: {{ audit_insert_result.summary.successful }} registros insertados en {{ audit_table }}
+        success_msg: >-
+          Inserción completada: {{ audit_insert_result.summary.successful }}/{{ audit_insert_result.summary.total_statements }}
+          registros insertados en {{ audit_table }}
+
+    - name: "SOX Audit | WARNING - Detectar Inserciones Parciales Fallidas"
+      ansible.builtin.debug:
+        msg:
+          - "ADVERTENCIA: Algunos registros NO fueron insertados en auditoría"
+          - "════════════════════════════════════════════════════════"
+          - "Exitosos: {{ audit_insert_result.summary.successful }}"
+          - "Fallidos: {{ audit_insert_result.summary.failed }}"
+          - "Tasa de éxito: {{ audit_insert_result.summary.success_rate }}%"
+          - "════════════════════════════════════════════════════════"
+          - "Revisar errores específicos en logs de AAP Job ID: {{ tower_job_id | default('N/A') }}"
+      when: audit_insert_result.summary.failed | int > 0
 
     - name: "SOX Audit | Retornar Resultado"
       ansible.builtin.set_fact:

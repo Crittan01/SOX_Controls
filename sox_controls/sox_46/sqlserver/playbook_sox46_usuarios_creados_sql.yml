@@ -1,0 +1,339 @@
+---
+# ═══════════════════════════════════════════════════════════════
+# SOX 046 SQL SERVER - PASO 2: REPORTE MENSUAL USUARIOS CREADOS
+# ═══════════════════════════════════════════════════════════════
+# Control ID: sox46_sqlserver_usuarios_creados
+# Descripción: Reporte mensual de usuarios creados en SQL Server
+#              consultando tabla staging y generando reporte final
+# Frecuencia: Mensual (día 1 de cada mes)
+# Versión: 1.0.0
+# Autor: Equipo Automatización
+# Fecha Creación: 2025-01-10
+# ═══════════════════════════════════════════════════════════════
+- name: "SX4 | Control SOX 046 - Usuarios Creados en SQL Server (Auditoría Mensual)"
+  hosts: localhost
+  gather_facts: true
+
+  vars:
+    # ───────────────────────────────────────────────────────────
+    # METADATA DEL CONTROL SOX
+    # ───────────────────────────────────────────────────────────
+    sox_control_id: "sox46_sqlserver_usuarios_creados"
+    sox_control_name: "{{ ansible_play_name | default('Usuarios Creados SQL Server - Reporte Mensual') }}"
+    sox_procedure_original: "dbo.Sp_Sox_046_Usuarios_Creados_Sql.StoredProcedure.sql"
+    sox_control_description: "Reporte mensual de usuarios creados en SQL Server del mes anterior."
+
+    # ───────────────────────────────────────────────────────────
+    # RUTAS DE ARCHIVOS
+    # ───────────────────────────────────────────────────────────
+    sox46_sql_monthly_file: "{{ playbook_dir }}/procedures/p2.Sp_Sox_046_Usuarios_Creados_monthly_user_report.sql"
+    sox46_email_template: "sox46_sqlserver_monthly_email.html.j2"
+
+    # ───────────────────────────────────────────────────────────
+    # METADATA DE EJECUCIÓN (AAP/AWX)
+    # ───────────────────────────────────────────────────────────
+    execution_timestamp: "{{ ansible_date_time.iso8601 }}"
+    execution_date: "{{ ansible_date_time.date }}"
+    execution_time: "{{ ansible_date_time.time }}"
+
+    aap_project_revision: "{{ tower_project_revision | default(awx_project_revision | default('LOCAL-DEV')) }}"
+    aap_job_id: "{{ tower_job_id | default(awx_job_id | default('localmente_no_AAP')) }}"
+    aap_job_template_name: "{{ tower_job_template_name | default(awx_job_template_name | default('Manual Execution')) }}"
+    aap_job_url: >-
+      {{ sox_urls.aap_base_url ~ '/#/jobs/playbook/' ~ (tower_job_id or awx_job_id)
+        if ((tower_job_id is defined or awx_job_id is defined) and sox_urls.aap_base_url is defined)
+        else 'N/A' }}
+    aap_executor_user: "{{ tower_user_name | default(awx_user_name | default('local_user')) }}"
+
+    # ───────────────────────────────────────────────────────────
+    # VARIABLES DE CONTROL
+    # ───────────────────────────────────────────────────────────
+    users_created_monthly: []
+    usuarios_estructurados: []
+
+  tasks:
+    - name: "SOX 046 - Monthly | Banner Inicio de Ejecución"
+      ansible.builtin.debug:
+        msg:
+          - "╔═══════════════════════════════════════════════════════════╗"
+          - "║  CONTROL SOX 046 - PASO 2: REPORTE MENSUAL USUARIOS       ║"
+          - "╚═══════════════════════════════════════════════════════════╝"
+          - "Fecha: {{ execution_date }} {{ execution_time }}"
+          - "Ejecutado por: {{ aap_executor_user }}"
+          - "Job ID: {{ aap_job_id }}"
+      tags: [always]
+
+    - name: "SOX 046 - Monthly | Calcular evidencia del Archivo SQL"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: calculate_file_evidence.yml
+      vars:
+        sql_file_path: "{{ sox46_sql_monthly_file }}"
+        id_control_sox: "{{ sox_control_id }}"
+      tags: [evidence]
+
+    - name: "SOX 046 - Monthly | Cargar contenido del Query SQL"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: load_sql_file.yml
+      vars:
+        sql_file_path: "{{ sox46_sql_monthly_file }}"
+      tags: [query_load]
+
+    - name: "SOX 046 - Monthly | Generar Metadata Completa"
+      ansible.builtin.set_fact:
+        sox_metadata:
+          control_id: "{{ sox_control_id }}"
+          control_name: "{{ sox_control_name }}"
+          control_description: "{{ sox_control_description }}"
+          control_version: "{{ sox_control_version | default('1.0.0') }}"
+          procedure_original: "{{ sox_procedure_original }}"
+
+          execution_timestamp: "{{ execution_timestamp }}"
+          execution_date: "{{ execution_date }}"
+          execution_time: "{{ execution_time }}"
+
+          sql_file_name: "{{ sql_file_evidence.filename }}"
+          sql_file_sha256: "{{ sql_file_evidence.sha256_hash }}"
+          sql_file_last_modified: "{{ sql_file_evidence.last_modified }}"
+          sql_file_size_bytes: "{{ sql_file_evidence.size_bytes }}"
+
+          aap_project_revision: "{{ aap_project_revision }}"
+          aap_job_id: "{{ aap_job_id }}"
+          aap_job_template: "{{ aap_job_template_name }}"
+          aap_job_url: "{{ aap_job_url }}"
+          aap_executor: "{{ aap_executor_user }}"
+
+          ansible_version: "{{ ansible_version.full }}"
+          role_version: "1.0.0"
+
+          # Contenido del Query (para auditoría)
+          query_executed: "{{ sql_query_content }}"
+      tags: [metadata]
+
+    - name: "SOX 046 - Monthly | Mostrar Evidencia de Control"
+      ansible.builtin.debug:
+        msg:
+          - "╔═══════════════════════════════════════════════════════════╗"
+          - "║  METADATA Y EVIDENCIA DEL CONTROL SOX 046                ║"
+          - "╚═══════════════════════════════════════════════════════════╝"
+          - "Control ID: {{ sox_metadata.control_id }}"
+          - "Control Name: {{ sox_metadata.control_name }}"
+          - "Control Version: {{ sox_metadata.control_version }}"
+          - ""
+          - "SQL File: {{ sox_metadata.sql_file_name }}"
+          - "SQL File SHA256: {{ sox_metadata.sql_file_sha256 }}"
+          - "SQL File Last Modified: {{ sox_metadata.sql_file_last_modified }}"
+          - "SQL File Size (bytes): {{ sox_metadata.sql_file_size_bytes }}"
+          - "Execution Timestamp: {{ sox_metadata.execution_timestamp }}"
+          - ""
+          - "Proyecto Git: {{ sox_metadata.aap_project_revision }}"
+          - "AAP Job ID: {{ sox_metadata.aap_job_id }}"
+          - "AAP Executor: {{ sox_metadata.aap_executor }}"
+      tags: [metadata_display]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 2: CONSULTAR TABLA STAGING EN ORACLE (SN_AUDIT)
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 046 - Monthly | Ejecutar Query en Tabla Staging Oracle (SN_AUDIT)"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: execute_query_oracle.yml
+      vars:
+        target_hosts: ["SN_AUDIT"]
+        oracle_query: "{{ sql_query_content }}"
+      tags: [query_execution]
+
+    - name: "SOX 046 - Monthly | Extraer Resultados de Staging"
+      ansible.builtin.set_fact:
+        users_created_monthly: "{{ oracle_query_results.results[0].query_result | default([]) }}"
+      when:
+        - oracle_query_results is defined
+        - oracle_query_results.results is defined
+        - oracle_query_results.results | length > 0
+        - oracle_query_results.results[0].execution_success | default(false)
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 3: ESTRUCTURAR DATOS PARA REPORTES
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 046 - Monthly | Estadísticas de Consulta"
+      ansible.builtin.debug:
+        msg:
+          - "════════════════════════════════════════════════"
+          - "ESTADÍSTICAS DE CONSULTA STAGING - SOX-046-MONTHLY"
+          - "════════════════════════════════════════════════"
+          - "Base consultada: SN_AUDIT ({{ oracle_query_results.results[0].database_host | default('N/A') }})"
+          - "Service Name: {{ oracle_query_results.results[0].database_name | default('N/A') }}"
+          - "Consulta exitosa: {{ oracle_query_results.results[0].execution_success | default(false) }}"
+          - "────────────────────────────────────────────────"
+          - "Total usuarios creados (mes anterior): {{ users_created_monthly | length }}"
+          - "════════════════════════════════════════════════"
+      tags: [stats]
+
+    - name: "SOX 046 - Monthly | Inicializar Lista de Usuarios Estructurados"
+      ansible.builtin.set_fact:
+        usuarios_estructurados: []
+      when: users_created_monthly | length > 0
+
+    - name: "SOX 046 - Monthly | Estructurar Datos de Usuarios Creados"
+      ansible.builtin.set_fact:
+        usuarios_estructurados: >-
+          {{
+            usuarios_estructurados + [{
+              'event_time': item[0],
+              'session_server_principal_name': item[1],
+              'target_server_principal_name': item[2],
+              'server_instance_name': item[3],
+              'database_name': item[4],
+              'object_name': item[5],
+              'statement': item[6][:200] if (item[6] | string | length > 200) else item[6],
+              'file_name': item[7]
+            }]
+          }}
+      loop: "{{ users_created_monthly }}"
+      loop_control:
+        label: "{{ item[2] | default('N/A') }}@{{ item[3] | default('unknown') }}"
+      when: users_created_monthly | length > 0
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 4: INSERTAR EN TABLA FINAL DE AUDITORÍA
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 046 - Monthly | Insertar en Tabla Final de Auditoría"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: insert_audit_records_monthly_sql.yml
+      vars:
+        audit_table: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_46_user_creado_sql }}"
+        audit_records_monthly: "{{ users_created_monthly }}"
+        audit_db_config: "{{ sox_audit_db }}"
+      when: users_created_monthly | length > 0
+      tags: [audit_insert]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 5: GENERAR ESTADÍSTICAS
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 046 - Monthly | Generar Estadísticas del Reporte"
+      ansible.builtin.set_fact:
+        sox46_sql_statistics:
+          total_users_created: "{{ users_created_monthly | length }}"
+          unique_instances: "{{ users_created_monthly | map(attribute=3) | unique | list | length }}"
+          unique_databases: "{{ users_created_monthly | map(attribute=4) | unique | list | length }}"
+          records_inserted_audit: "{{ monthly_insert_results.records_inserted | default(0) }}"
+          records_failed_audit: "{{ monthly_insert_results.records_failed | default(0) }}"
+          audit_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_46_user_creado_sql }}"
+          staging_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_46_sql_staging }}"
+      tags: [reporting]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 6: GENERAR ARCHIVO EXCEL
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 046 - Monthly | Generar archivo Excel con detalle de usuarios SQL Server"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: generate_excel_report.yml
+      vars:
+        excel_output_file: "/tmp/{{ sox_control_id }}_{{ execution_date }}.xlsx"
+        excel_sheet_name: "Usuarios SQL - {{ execution_date }}"
+        excel_headers:
+          - "Fecha Evento"
+          - "Usuario Sesión"
+          - "Usuario Creado"
+          - "Instancia SQL"
+          - "Base de Datos"
+          - "Objeto"
+          - "Statement"
+          - "Archivo Audit"
+        excel_data: "{{ usuarios_estructurados }}"
+        excel_data_keys:
+          - "event_time"
+          - "session_server_principal_name"
+          - "target_server_principal_name"
+          - "server_instance_name"
+          - "database_name"
+          - "object_name"
+          - "statement"
+          - "file_name"
+        excel_title: "{{ sox_control_name }}"
+        excel_metadata:
+          - "Control: {{ sox_control_id }}"
+          - "Descripción: {{ sox_control_description }}"
+          - "Fecha de Ejecución: {{ execution_date }} {{ execution_time }}"
+          - "Período del Reporte: Mes Anterior"
+          - "Total de Usuarios Creados: {{ sox46_sql_statistics.total_users_created }}"
+          - "Instancias SQL Únicas: {{ sox46_sql_statistics.unique_instances }}"
+          - "Bases de Datos Únicas: {{ sox46_sql_statistics.unique_databases }}"
+          - "Tabla Staging: {{ sox46_sql_statistics.staging_table_name }}"
+          - "Tabla Auditoría Final: {{ sox46_sql_statistics.audit_table_name }}"
+          - "Registros Insertados en Auditoría: {{ sox46_sql_statistics.records_inserted_audit }}"
+          - "Ejecutado por: {{ aap_executor_user }}"
+          - "Job ID: {{ aap_job_id }}"
+          - "Git Revision: {{ aap_project_revision }}"
+      when: usuarios_estructurados | length > 0
+      tags: [excel, reporting]
+
+    - name: "SOX 046 - Monthly | Registrar ruta del archivo Excel generado"
+      ansible.builtin.set_fact:
+        excel_file_path: "{{ excel_result.file_path }}"
+      when:
+        - usuarios_estructurados | length > 0
+        - excel_result is defined
+        - excel_result.file_path is defined
+      tags: [excel, reporting]
+
+    - name: "SOX 046 - Monthly | Mostrar información del Excel generado"
+      ansible.builtin.debug:
+        msg:
+          - "════════════════════════════════════════════════"
+          - "ARCHIVO EXCEL GENERADO"
+          - "════════════════════════════════════════════════"
+          - "Ruta: {{ excel_file_path | default('No generado') }}"
+          - "Registros: {{ usuarios_estructurados | length }}"
+          - "════════════════════════════════════════════════"
+      when: excel_file_path is defined
+      tags: [excel, reporting]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 7: ENVÍO DE REPORTE POR EMAIL
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 046 - Monthly | Enviar Reporte por Email"
+      ansible.builtin.include_role:
+        name: sox_email_reporter
+      vars:
+        email_template: "{{ sox46_email_template }}"
+        email_subject: "{{ sox_control_name }} - {{ execution_date }}"
+        email_data:
+          metadata: "{{ sox_metadata }}"
+          statistics: "{{ sox46_sql_statistics }}"
+          users: "{{ usuarios_estructurados }}"
+        email_config: "{{ sox_email_config }}"
+        email_attachments: >-
+          {{ [excel_file_path] if (usuarios_estructurados | length > 0 and excel_file_path is defined) else [] }}
+      when: sox_email_config.to_addresses is defined and sox_email_config.to_addresses | length > 0
+      tags: [email, reporting]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 8: REPORTE FINAL DE EJECUCIÓN
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 046 - Monthly | Reporte Final de Ejecución"
+      ansible.builtin.debug:
+        msg:
+          - "════════════════════════════════════════════════════════════════"
+          - "REPORTE FINAL - SOX-046-SQL-MONTHLY"
+          - "════════════════════════════════════════════════════════════════"
+          - "Control: {{ sox_control_id }}"
+          - "Fecha: {{ execution_date }} {{ execution_time }}"
+          - "Job ID: {{ aap_job_id }}"
+          - "----------------------------------------------------------------"
+          - "Usuarios Creados (mes anterior): {{ sox46_sql_statistics.total_users_created }}"
+          - "Instancias SQL Únicas: {{ sox46_sql_statistics.unique_instances }}"
+          - "Bases de Datos Únicas: {{ sox46_sql_statistics.unique_databases }}"
+          - "----------------------------------------------------------------"
+          - "Tabla Staging: {{ sox46_sql_statistics.staging_table_name }}"
+          - "Tabla Auditoría: {{ sox46_sql_statistics.audit_table_name }}"
+          - "Registros Insertados: {{ sox46_sql_statistics.records_inserted_audit }}"
+          - "Registros Fallidos: {{ sox46_sql_statistics.records_failed_audit }}"
+          - "----------------------------------------------------------------"
+          - "Excel: {{ excel_file_path | default('No generado') }}"
+          - "SHA256 Query: {{ sox_metadata.sql_file_sha256 }}"
+          - "════════════════════════════════════════════════════════════════"
+      tags: [reporting]

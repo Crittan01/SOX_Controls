@@ -2,7 +2,7 @@
 # ═══════════════════════════════════════════════════════════════
 # SOX 046 SQL SERVER - PASO 1: RECOLECCIÓN DIARIA DE AUDITORÍA
 # ═══════════════════════════════════════════════════════════════
-# Control ID: SOX-046-SQL-DAILY
+# Control ID: sox46_sqlserver_consulta_daily
 # Descripción: Recopilación diaria de eventos de auditoría desde
 #              SQL Server hacia tabla de staging en Oracle SN_AUDIT
 # Frecuencia: Diaria (1:00 AM)
@@ -10,7 +10,7 @@
 # Autor: Equipo Automatización
 # Fecha Creación: 2025-01-10
 # ═══════════════════════════════════════════════════════════════
-- name: "SX4 | Control SOX 046 - Recolección Diaria de Auditoría desde SQL Server"
+- name: "SX4 | Control SOX 046 (Daily) - Recolección Diaria de Auditoría desde SQL Server"
   hosts: localhost
   gather_facts: true
 
@@ -18,15 +18,15 @@
     # ───────────────────────────────────────────────────────────
     # METADATA DEL CONTROL SOX
     # ───────────────────────────────────────────────────────────
-    sox_control_id: "SOX-046-SQL-DAILY"
+    sox_control_id: "sox46_sqlserver_consulta_daily"
     sox_control_name: "{{ ansible_play_name | default('Recolección Diaria Auditoría SQL Server')}}"
-    sox_procedure_original: "DEV_Sp_Sox_046_Usuarios_Creados_SQLSERVER.sql - Paso 1"
+    sox_procedure_original: "dbo.Sp_Sox_046_Usuarios_Creados_Sql.StoredProcedure.sql"
     sox_control_description: "Recopilación diaria de eventos de auditoría SQL Server en tabla staging Oracle"
 
     # ───────────────────────────────────────────────────────────
     # RUTAS DE ARCHIVOS
     # ───────────────────────────────────────────────────────────
-    sox46_sql_file: "{{ playbook_dir }}/procedures/paso1_daily_audit_collection.sql"
+    sox46_sql_daily_file: "{{ playbook_dir }}/procedures/p1.Sp_Sox_046_Usuarios_Creados_daily_audit.sql"
 
     # ───────────────────────────────────────────────────────────
     # METADATA DE EJECUCIÓN (AAP/AWX)
@@ -36,13 +36,13 @@
     execution_time: "{{ ansible_date_time.time }}"
 
     aap_project_revision: "{{ tower_project_revision | default(awx_project_revision | default('LOCAL-DEV')) }}"
-    aap_job_id: "{{ tower_job_id if tower_job_id is defined else (awx_job_id if awx_job_id is defined else 'localmente_no_AAP') }}"
+    aap_job_id: "{{ tower_job_id | default(awx_job_id | default('localmente_no_AAP')) }}"
     aap_job_template_name: "{{ tower_job_template_name | default('Manual Execution') }}"
     aap_job_url: >-
       {{ sox_urls.aap_base_url ~ '/#/jobs/playbook/' ~ (tower_job_id or awx_job_id)
         if ((tower_job_id is defined or awx_job_id is defined) and sox_urls.aap_base_url is defined)
         else 'localmente_no_AAP' }}
-    aap_executor_user: "{{ tower_user_name | default(tower_user_email | default(lookup('env', 'USER'))) }}"
+    aap_executor_user: "{{ tower_user_name | default(awx_user_name | default('local_user')) }}"
 
     # ───────────────────────────────────────────────────────────
     # VARIABLES DE CONTROL
@@ -72,7 +72,7 @@
         name: sox_common
         tasks_from: calculate_file_evidence.yml
       vars:
-        sql_file_path: "{{ sox46_sql_file }}"
+        sql_file_path: "{{ sox46_sql_daily_file }}"
         id_control_sox: "{{ sox_control_id }}"
       tags: [evidence]
 
@@ -81,7 +81,7 @@
         name: sox_common
         tasks_from: load_sql_file.yml
       vars:
-        sql_file_path: "{{ sox46_sql_file }}"
+        sql_file_path: "{{ sox46_sql_daily_file }}"
       tags: [query_load]
 
     - name: "SOX 046 - Daily | Generar Metadata Completa del Control SOX"
@@ -142,7 +142,7 @@
       tags: [metadata_display]
 
     # ═══════════════════════════════════════════════════════════
-    # FASE 2: EJECUCIÓN DEL QUERY EN TODAS LAS BASES ORACLE
+    # FASE 2: EJECUCIÓN DEL QUERY EN TODAS LAS BASES SQL
     # ═══════════════════════════════════════════════════════════
     - name: "SOX 046 - Daily | Obtener lista de instancias SQL Server del inventario"
       ansible.builtin.set_fact:
@@ -193,7 +193,7 @@
       loop_control:
         label: "{{ item.instance_name }}"
 
-    - name: "SOX-046-SQL-DAILY | Registrar Instancias con Errores"
+    - name: "SOX 046 - Daily | Registrar Instancias con Errores"
       ansible.builtin.set_fact:
         instances_with_errors: >-
           {{ instances_with_errors + [{
@@ -225,7 +225,7 @@
     # ═══════════════════════════════════════════════════════════
     # FASE 4: INSERCIÓN EN TABLA STAGING DE ORACLE
     # ═══════════════════════════════════════════════════════════
-    - name: "SOX-046-SQL-DAILY | Insertar Eventos en Tabla Staging"
+    - name: "SOX 046 - Daily | Insertar Eventos en Tabla Staging"
       ansible.builtin.include_role:
         name: sox_common
         tasks_from: insert_audit_records_sqlserver.yml
@@ -239,7 +239,7 @@
     # ═══════════════════════════════════════════════════════════
     # FASE 5: REPORTE DE RESULTADOS
     # ═══════════════════════════════════════════════════════════
-    - name: "SOX-046-SQL-DAILY | Reporte Final de Ejecución"
+    - name: "SOX 046 - Daily | Reporte Final de Ejecución"
       ansible.builtin.debug:
         msg:
           - "================================================================="
@@ -251,14 +251,15 @@
           - "-----------------------------------------------------------------"
           - "Instancias SQL Server procesadas: {{ total_instances_processed }}"
           - "Eventos de auditoría recolectados: {{ total_events_collected }}"
-          - "Registros insertados en staging: {{ records_inserted_sqlserver | default(0) }}"
+          - "Registros insertados en auditoría: {{ records_inserted | default(0) }}"
+          - "Registros fallidos: {{ records_failed | default(0) }}"
           - "-----------------------------------------------------------------"
-          - "Tabla Staging: {{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_46_sql_staging }}"
+          - "Tabla Auditoría: {{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_46_sql_staging }}"
           - "SHA256 Query: {{ sox_metadata.sql_file_sha256 }}"
           - "================================================================="
       tags: [reporting]
 
-    - name: "SOX-046-SQL-DAILY | Advertencia si hay Instancias con Errores"
+    - name: "SOX 046 - Daily | Advertencia si hay Instancias con Errores"
       ansible.builtin.debug:
         msg:
           - "ADVERTENCIA: {{ total_instances_with_errors }} instancia(s) SQL Server con errores de conexión"

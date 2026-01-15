@@ -13,8 +13,8 @@
         port: "{{ hostvars[item].sqlserver_port }}"
         instance: "{{ hostvars[item].sqlserver_instance | default(omit) }}"
         database: "{{ hostvars[item].sqlserver_database }}"
-        username: "{{ sqlserver_username }}"
-        password: "{{ sqlserver_password }}"
+        username: "{{ sqlserver_db_username }}"
+        password: "{{ sqlserver_db_password }}"
         sql: "{{ sqlserver_query }}"
       loop: "{{ target_hosts }}"
       register: sqlserver_results

@@ -16,7 +16,7 @@
 
 - name: "Email | Generar Nombre de Archivo Temporal"
   ansible.builtin.set_fact:
-    email_temp_file: "/tmp/sox_email_{{ email_data.metadata.control_id }}_{{ email_data.metadata.execution_date }}.html"
+    email_temp_file: "/tmp/{{ email_data.metadata.control_id }}_{{ email_data.metadata.execution_date }}.html"
 
 - name: "Email | Renderizar Template HTML"
   ansible.builtin.template:

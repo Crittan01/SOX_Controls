@@ -2,7 +2,7 @@
 # ═══════════════════════════════════════════════════════════════
 # SOX 046 - USUARIOS CREADOS EN ORACLE - AUDITORÍA MENSUAL
 # ═══════════════════════════════════════════════════════════════
-# Control ID: SOX-046
+# Control ID: sox46_oracle_usuarios_creados
 # Descripción: Auditoría de usuarios creados en bases Oracle durante
 #              el mes anterior.
 # Frecuencia: Mensual (día 1 de cada mes)
@@ -18,9 +18,9 @@
     # ─────────────────────────────────────────────────────────────
     # METADATA DEL CONTROL SOX
     # ─────────────────────────────────────────────────────────────
-    sox_control_id: "SOX-046"
+    sox_control_id: "sox46_oracle_usuarios_creados"
     sox_control_name: "{{ ansible_play_name | default('Usuarios Creados en Oracle - Auditoría Mensual')}}"
-    sox_procedure_original: "DEV_Sp_Sox_046_Usuarios_Creados_Oracle.sql"
+    sox_procedure_original: "dbo.Sp_Sox_046_Usuarios_Creados_Oracle.StoredProcedure.sql"
     sox_control_description: "Auditoría de creación de usuarios en bases Oracle del mes anterior"
 #    sox_control_version: "1.0.0"
 #    job_type: "SOX Control Automation"
@@ -29,8 +29,8 @@
     # ───────────────────────────────────────────────────────────
     # RUTAS DE ARCHIVOS
     # ───────────────────────────────────────────────────────────
-    sox46_sql_file: "{{ playbook_dir }}/procedures/DEV_Sp_Sox_046_Usuarios_Creados_Oracle.sql"
-    sox46_email_template: "sox46_email_body.html.j2"
+    sox46_sql_file: "{{ playbook_dir }}/procedures/Sp_Sox_046_Usuarios_Creados_Oracle.sql"
+    sox46_email_template: "sox46_oracle_email_body.html.j2"
 
     # ───────────────────────────────────────────────────────────
     # METADATA DE EJECUCIÓN (AAP/AWX)
@@ -41,13 +41,13 @@
 
     # Variables AAP (automáticamente inyectadas por AAP/AWX)
     aap_project_revision: "{{ tower_project_revision | default(awx_project_revision | default('LOCAL-DEV')) }}"
-    aap_job_id: "{{ tower_job_id if tower_job_id is defined else (awx_job_id if awx_job_id is defined else 'localmente_no_AAP') }}"
-    aap_job_template_name: "{{ tower_job_template_name | default('Manual Execution') }}"
+    aap_job_id: "{{ tower_job_id | default(awx_job_id | default('localmente_no_AAP')) }}"
+    aap_job_template_name: "{{ tower_job_template_name | default(awx_job_template_name | default('Manual Execution')) }}"
     aap_job_url: >-
       {{ sox_urls.aap_base_url ~ '/#/jobs/playbook/' ~ (tower_job_id or awx_job_id)
         if ((tower_job_id is defined or awx_job_id is defined) and sox_urls.aap_base_url is defined)
         else 'localmente_no_AAP' }}
-    aap_executor_user: "{{ tower_user_name | default(tower_user_email | default(lookup('env', 'USER'))) }}"
+    aap_executor_user: "{{ tower_user_name | default(awx_user_name | default('local_user')) }}"
 
     # ───────────────────────────────────────────────────────────
     # VARIABLES DE CONTROL
@@ -355,7 +355,7 @@
         name: sox_common
         tasks_from: generate_excel_report.yml
       vars:
-        excel_output_file: "/tmp/sox46_usuarios_{{ execution_date }}.xlsx"
+        excel_output_file: "/tmp/{{ sox_control_id }}_{{ execution_date }}.xlsx"
         excel_sheet_name: "Usuarios Creados - {{ execution_date }}"
         excel_headers:
           - "Base de Datos"

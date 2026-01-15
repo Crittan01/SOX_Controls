@@ -181,7 +181,19 @@ def execute_single_sql_thread(connection_manager, sql_statement, timeout, thread
         
         if sql_clean.lower().startswith('select'):
             cursor.execute(sql_clean)
-            fetch_result = cursor.fetchall()
+            raw_fetch_result = cursor.fetchall()
+            
+            # **Convertir LOBs a strings**
+            fetch_result = []
+            for row in raw_fetch_result:
+                converted_row = []
+                for col in row:
+                    if isinstance(col, cx_Oracle.LOB):
+                        converted_row.append(col.read() if col else None)
+                    else:
+                        converted_row.append(col)
+                fetch_result.append(tuple(converted_row))
+            
             result['message'] = fetch_result
             result['success'] = True
             result['row_count'] = len(fetch_result) if fetch_result else 0
@@ -343,7 +355,20 @@ def execute_single_sql_sync(module, connection_params, sql):
         
         if first_word in ('select', 'with', 'explain'):
             cursor.execute(sql_clean)
-            result = cursor.fetchall()
+            raw_result = cursor.fetchall()
+            
+            # Convertir LOBs a strings antes de cerrar**
+            result = []
+            for row in raw_result:
+                converted_row = []
+                for col in row:
+                    if isinstance(col, cx_Oracle.LOB):
+                        # Leer el contenido del LOB completo
+                        converted_row.append(col.read() if col else None)
+                    else:
+                        converted_row.append(col)
+                result.append(tuple(converted_row))
+            
             cursor.close()
             conn.close()
             return result

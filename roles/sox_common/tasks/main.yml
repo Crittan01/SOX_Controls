@@ -1,0 +1,16 @@
+---
+# tasks file for roles/sox_common
+- name: Consulta simple - Versión de SQL Server
+  sqlserver_sql_async:
+    host: 10.205.24.153
+    port: 1436
+    instance: INSTANCE1
+    database: master
+    username: USERSTAT
+    password: ""
+    sql: 'SELECT @@VERSION AS version'
+  register: sql_version
+
+- name: Mostrar resultado
+  ansible.builtin.debug:
+    var: sql_version.msg
