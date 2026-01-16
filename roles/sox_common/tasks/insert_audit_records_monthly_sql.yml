@@ -5,7 +5,7 @@
 # Descripción: Inserta registros del reporte mensual de usuarios
 #              creados en SQL Server desde staging a tabla final
 # Origen: SELECT de SOX_EstadisticasSQLSERVER (Oracle staging)
-# Destino: SURA_SOX_USUARIOS_CREADOS_SQL (Oracle audit)
+# Destino: SOX_USUARIOS_CREADOS_SQL (Oracle audit)
 # Campos: 8 columnas (sin action_id, class_type del daily)
 # ═══════════════════════════════════════════════════════════════
 - name: "SOX Audit Monthly | Insertar Registros Mensuales SQL Server"
