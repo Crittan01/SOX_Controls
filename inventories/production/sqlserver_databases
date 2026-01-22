@@ -1,5 +1,12 @@
 [sqlserver_databases]
-server_SNSQL ansible_host=12.345.67.89 sqlserver_port=1234 sqlserver_instance=server_SNSQL sqlserver_database=master
+server_GIGA ansible_host=10.205.24.153 sqlserver_port=1436 sqlserver_instance=GIGA sqlserver_database=master
 
 [sqlserver_databases:vars]
 ansible_connection=local
+
+[audit_database]
+SN_AUDIT ansible_host=server6 oracle_port=1234 oracle_service_name=SN_AUDIT oracle_sid=SN_AUDIT
+
+[audit_database:vars]
+ansible_connection=local
+oracle_mode=normal

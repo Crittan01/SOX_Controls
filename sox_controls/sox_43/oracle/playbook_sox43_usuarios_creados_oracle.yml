@@ -1,16 +1,16 @@
 ---
 # ═══════════════════════════════════════════════════════════════
-# SOX 046 - USUARIOS CREADOS EN ORACLE - AUDITORÍA MENSUAL
+# SOX 043 - USUARIOS CREADOS EN ORACLE - AUDITORÍA MENSUAL
 # ═══════════════════════════════════════════════════════════════
-# Control ID: sox46_oracle_usuarios_creados
+# Control ID: sox43_oracle_usuarios_creados
 # Descripción: Auditoría de usuarios creados en bases Oracle durante
 #              el mes anterior.
 # Frecuencia: Mensual (día 1 de cada mes)
 # Versión: 1.0.0
-# Autor: Equipo Automatización NTT Data
+# Autor: Equipo Automatización 
 # Fecha Creación: 2025-01-05
 # ═══════════════════════════════════════════════════════════════
-- name: "SX4 | Control SOX 046 - Usuarios Creados en Oracle (Auditoría Mensual)"
+- name: "SX4 | Control SOX 043 - Usuarios Creados en Oracle (Auditoría Mensual)"
   hosts: localhost
   gather_facts: true
 
@@ -18,7 +18,7 @@
     # ─────────────────────────────────────────────────────────────
     # METADATA DEL CONTROL SOX
     # ─────────────────────────────────────────────────────────────
-    sox_control_id: "sox46_oracle_usuarios_creados"
+    sox_control_id: "sox43_oracle_usuarios_creados"
     sox_control_name: "{{ ansible_play_name | default('Usuarios Creados en Oracle - Auditoría Mensual')}}"
     sox_procedure_original: "dbo.Sp_Sox_046_Usuarios_Creados_Oracle.StoredProcedure.sql"
     sox_control_description: "Auditoría de creación de usuarios en bases Oracle del mes anterior"
@@ -29,8 +29,8 @@
     # ───────────────────────────────────────────────────────────
     # RUTAS DE ARCHIVOS
     # ───────────────────────────────────────────────────────────
-    sox46_sql_file: "{{ playbook_dir }}/procedures/Sp_Sox_046_Usuarios_Creados_Oracle.sql"
-    sox46_email_template: "sox46_oracle_email_body.html.j2"
+    sox43_sql_file: "{{ playbook_dir }}/procedures/Sp_Sox_046_Usuarios_Creados_Oracle.sql"
+    sox43_email_template: "sox43_oracle_email_body.html.j2"
 
     # ───────────────────────────────────────────────────────────
     # METADATA DE EJECUCIÓN (AAP/AWX)
@@ -68,35 +68,35 @@
     # ═══════════════════════════════════════════════════════════
     # FASE 1: METADATA Y EVIDENCIA DEL ARCHIVO SQL
     # ═══════════════════════════════════════════════════════════
-    - name: "SOX 046 | Banner Inicio de Ejecución"
+    - name: "SOX 043 | Banner Inicio de Ejecución"
       ansible.builtin.debug:
         msg:
           - "╔═══════════════════════════════════════════════════════════╗"
-          - "║  CONTROL SOX 046 - USUARIOS CREADOS ORACLE                ║"
+          - "║  CONTROL SOX 043 - USUARIOS CREADOS ORACLE                ║"
           - "╚═══════════════════════════════════════════════════════════╝"
           - "Fecha: {{ execution_date }} {{ execution_time }}"
           - "Ejecutado por: {{ aap_executor_user }}"
           - "Job ID: {{ aap_job_id }}"
       tags: [always]
 
-    - name: "SOX 046 | Calcular evidencia del Archivo SQL"
+    - name: "SOX 043 | Calcular evidencia del Archivo SQL"
       ansible.builtin.include_role:
         name: sox_common
         tasks_from: calculate_file_evidence.yml
       vars:
-        sql_file_path: "{{ sox46_sql_file }}"
+        sql_file_path: "{{ sox43_sql_file }}"
         id_control_sox: "{{ sox_control_id }}"
       tags: [evidence]
 
-    - name: "SOX 046 | Cargar contenido del Query SQL"
+    - name: "SOX 043 | Cargar contenido del Query SQL"
       ansible.builtin.include_role:
         name: sox_common
         tasks_from: load_sql_file.yml
       vars:
-        sql_file_path: "{{ sox46_sql_file }}"
+        sql_file_path: "{{ sox43_sql_file }}"
       tags: [query_load]
 
-    - name: "SOX 046 | Generar Metadata Completa del Control SOX"
+    - name: "SOX 043 | Generar Metadata Completa del Control SOX"
       ansible.builtin.set_fact:
         sox_metadata:
           # Identificación del Control
@@ -132,11 +132,11 @@
           query_executed: "{{ sql_query_content }}"
       tags: [metadata]
 
-    - name: "SOX 046 | Mostrar Evidencia de Control"
+    - name: "SOX 043 | Mostrar Evidencia de Control"
       ansible.builtin.debug:
         msg:
           - "╔═══════════════════════════════════════════════════════════╗"
-          - "║  METADATA Y EVIDENCIA DEL CONTROL SOX 046                ║"
+          - "║  METADATA Y EVIDENCIA DEL CONTROL SOX 043                ║"
           - "╚═══════════════════════════════════════════════════════════╝"
           - "Control ID: {{ sox_metadata.control_id }}"
           - "Control Name: {{ sox_metadata.control_name }}"
@@ -162,7 +162,7 @@
       failed_when: false
       changed_when: false
 
-    - name: "SOX 046 | Ejecutar Query en Bases Oracle y Recopilar Resultados"
+    - name: "SOX 043 | Ejecutar Query en Bases Oracle y Recopilar Resultados"
       ansible.builtin.include_role:
         name: sox_common
         tasks_from: execute_query_oracle.yml
@@ -317,7 +317,7 @@
         name: sox_common
         tasks_from: insert_audit_records_oracle.yml
       vars:
-        audit_table: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_46 }}"
+        audit_table: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_43 }}"
         audit_records_oracle: "{{ consolidated_users }}"
         audit_db_config: "{{ sox_audit_db }}"
       when: consolidated_users | length > 0
@@ -326,9 +326,9 @@
     # ═══════════════════════════════════════════════════════════
     # FASE 5: GENERACIÓN DE ESTADÍSTICAS PARA REPORTE
     # ═══════════════════════════════════════════════════════════
-    - name: "SOX 046 | Generar estadisticas del Reporte"
+    - name: "SOX 043 | Generar estadisticas del Reporte"
       ansible.builtin.set_fact:
-        sox46_statistics:
+        sox43_statistics:
           # Estadisticas de Base de Datos
           total_databases: "{{ groups['oracle_databases'] | length }}"
           databases_processed: "{{ total_databases_processed }}"
@@ -344,13 +344,13 @@
 
           # Auditoría
           records_inserted_audit: "{{ audit_insert_result.successful_count | default(0) }}"
-          audit_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_46 }}"
+          audit_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_43 }}"
       tags: [reporting]
 
     # ═══════════════════════════════════════════════════════════
     # FASE 6: GENERACIÓN DE ARCHIVO EXCEL
     # ═══════════════════════════════════════════════════════════
-    - name: "SOX 046 | Generar archivo Excel con detalle de usuarios"
+    - name: "SOX 043 | Generar archivo Excel con detalle de usuarios"
       ansible.builtin.include_role:
         name: sox_common
         tasks_from: generate_excel_report.yml
@@ -385,7 +385,7 @@
       when: usuarios_estructurados | length > 0
       tags: [excel, reporting]
 
-    - name: "SOX 046 | Registrar ruta del archivo Excel generado"
+    - name: "SOX 043 | Registrar ruta del archivo Excel generado"
       ansible.builtin.set_fact:
         excel_file_path: "{{ excel_result.file_path }}"
       when:
@@ -397,15 +397,15 @@
     # ═══════════════════════════════════════════════════════════
     # FASE 7: ENVÍO DE REPORTE POR EMAIL
     # ═══════════════════════════════════════════════════════════
-    - name: "SOX 046 | Enviar Reporte por Email"
+    - name: "SOX 043 | Enviar Reporte por Email"
       ansible.builtin.include_role:
         name: sox_email_reporter
       vars:
-        email_template: "{{ sox46_email_template }}"
+        email_template: "{{ sox43_email_template }}"
         email_subject: "{{ sox_control_name }} - {{ execution_date }}"
         email_data:
           metadata: "{{ sox_metadata }}"
-          statistics: "{{ sox46_statistics }}"
+          statistics: "{{ sox43_statistics }}"
           users: "{{ usuarios_estructurados }}"
           databases_errors: "{{ databases_with_errors }}"
           databases_success: "{{ databases_success_list }}"

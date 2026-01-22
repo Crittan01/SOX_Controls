@@ -41,5 +41,5 @@
   until: >-
     email_send_result is succeeded and
     'Mail sent successfully' in email_send_result.msg
-  retries: 3
-  delay: 5
+  retries: 5
+  delay: 10

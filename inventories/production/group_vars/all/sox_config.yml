@@ -28,13 +28,19 @@ sox_audit_db:
   schema: "ADMONBD"
   mode: "normal"
 
-# Tablas de auditoría por control
+# TABLAS DE AUDITORIA POR CONTROL
 sox_audit_tables:
+  # SX4 | CONTROL 43 SQL SERVER
+  sox_43_sql_staging: "SOX_EstadisticasSQLSERVER"           # Paso 1 (diario)
+  sox_43_user_creado_sql: "SOX_USUARIOS_CREADOS_SQL"   # Paso 2 (mensual)
+
+  # SX4 | CONTROL 43 ORACLE
+  sox_43: "SOX_USUARIOS_CREADOS"
+
 #  sox_15: "SOX_015_USUARIOS_PRIVILEGIOS"
 #  sox_30: "SOX_030_CAMBIOS_PRIVILEGIOS"
-  sox_46: "SOX_USUARIOS_CREADOS"
-  sox_46_sql_staging: "SOX_EstadisticasSQLSERVER"   # Paso 1 (diario)
-  sox_46_sql: "SOX_USUARIOS_CREADOS_SQL"       # Paso 2 (mensual)
+
+
 # ───────────────────────────────────────────────────────────────
 # CONFIGURACIÓN DE EVIDENCIA
 # ───────────────────────────────────────────────────────────────
@@ -49,9 +55,9 @@ sox_evidence_config:
 # ───────────────────────────────────────────────────────────────
 sox_urls:
   aap_base_url: "https://10.432.12.987"
-#  gitlab_repo_url: "https://gitlab.cliente.com/automation/1-automatizaciones-ntt-ansible-sox-controls-conf"
+#  gitlab_repo_url: "https://gitlab.cliente.com/automation/automatizaciones-ansible"
 #  jira_project_url: "https://jira.cliente.com/projects/SOX"
 #  confluence_docs_url: "https://confluence.cliente.com/display/SOX"
 
 sox_debug: true
-debug_playbook: true
+debug_playbook: false
