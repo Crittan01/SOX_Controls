@@ -7,7 +7,7 @@
 #              el mes anterior.
 # Frecuencia: Mensual (día 1 de cada mes)
 # Versión: 1.0.0
-# Autor: Equipo Automatización 
+# Autor: Equipo Automatización
 # Fecha Creación: 2025-01-05
 # ═══════════════════════════════════════════════════════════════
 - name: "SX4 | Control SOX 043 - Usuarios Creados en Oracle (Auditoría Mensual)"
@@ -156,7 +156,7 @@
     # ═══════════════════════════════════════════════════════════
     # FASE 2: EJECUCIÓN DEL QUERY EN TODAS LAS BASES ORACLE
     # ═══════════════════════════════════════════════════════════
-    - name: "SOX-046 | Obtener lista de hosts Oracle desde el inventario"
+    - name: "SOX-043 | Obtener lista de hosts Oracle desde el inventario"
       ansible.builtin.set_fact:
         oracle_hosts_list: "{{ groups['oracle_databases'] }}"
       failed_when: false
@@ -176,7 +176,7 @@
     # FASE 3: CONSOLIDACIÓN DE RESULTADOS
     # ═══════════════════════════════════════════════════════════
     # Primero: Registrar TODAS las bases que conectaron exitosamente
-    - name: "SOX-046 | Registrar Bases Procesadas Exitosamente"
+    - name: "SOX-043 | Registrar Bases Procesadas Exitosamente"
       ansible.builtin.set_fact:
         databases_success_list: >-
           {{ databases_success_list + [item.database_name] }}
@@ -185,13 +185,13 @@
       loop_control:
         label: "{{ item.database_name }}"
 
-    - name: "SOX-046 | DEBUG - Registrar Bases Procesadas Exitosamente"
+    - name: "SOX-043 | DEBUG - Registrar Bases Procesadas Exitosamente"
       ansible.builtin.debug:
         var: databases_success_list
       when: debug_playbook | default(false)
 
     # Segundo: Consolidar usuarios (solo de las que tienen datos)
-    - name: "SOX-046 | Consolidar Usuarios Encontrados"
+    - name: "SOX-043 | Consolidar Usuarios Encontrados"
       ansible.builtin.set_fact:
         consolidated_users: "{{ consolidated_users + item.query_result }}"
         databases_with_users: "{{ databases_with_users + [item.database_name] }}"
@@ -202,18 +202,18 @@
       loop_control:
         label: "{{ item.database_name }}"
 
-    - name: "SOX-046 | DEBUG - Consolidar Usuarios Encontrados"
+    - name: "SOX-043 | DEBUG - Consolidar Usuarios Encontrados"
       ansible.builtin.debug:
         var: consolidated_users
       when: debug_playbook | default(false)
 
-    - name: "SOX-046 | DEBUG - Consolidar DB con Usuarios"
+    - name: "SOX-043 | DEBUG - Consolidar DB con Usuarios"
       ansible.builtin.debug:
         var: databases_with_users
       when: debug_playbook | default(false)
 
     # Tercero: Registrar errores de conexión
-    - name: "SOX-046 | Registrar Bases con Errores"
+    - name: "SOX-043 | Registrar Bases con Errores"
       ansible.builtin.set_fact:
         databases_with_errors: >-
           {{ databases_with_errors + [{
@@ -226,13 +226,13 @@
       loop_control:
         label: "{{ item.database_name }}"
 
-    - name: "SOX-046 | DEBUG - Registrar Bases con Errores"
+    - name: "SOX-043 | DEBUG - Registrar Bases con Errores"
       ansible.builtin.debug:
         var: databases_with_errors
       when: debug_playbook | default(false)
 
     # Cuarto: Registrar bases sin usuarios (pero conexión OK)
-    - name: "SOX-046 | Registrar Bases Sin Usuarios"
+    - name: "SOX-043 | Registrar Bases Sin Usuarios"
       ansible.builtin.set_fact:
         databases_without_users: >-
           {{ databases_without_users + [item.database_name] }}
@@ -243,13 +243,13 @@
       loop_control:
         label: "{{ item.database_name }}"
 
-    - name: "SOX-046 | DEBUG - Registrar Bases Sin Usuarios"
+    - name: "SOX-043 | DEBUG - Registrar Bases Sin Usuarios"
       ansible.builtin.debug:
         var: databases_without_users
       when: debug_playbook | default(false)
 
     # Estructurar datos de usuarios para reportes
-    - name: "SOX-046 | Estructurar Datos de Usuarios"
+    - name: "SOX-043 | Estructurar Datos de Usuarios"
       ansible.builtin.set_fact:
         usuarios_estructurados: >-
           {{ usuarios_estructurados + [{
@@ -265,7 +265,7 @@
       loop_control:
         label: "{{ item[1] }}@{{ item[0] }}"
 
-    - name: "SOX-046 | DEBUG - Registrar Bases Sin Usuarios"
+    - name: "SOX-043 | DEBUG - Registrar Bases Sin Usuarios"
       ansible.builtin.debug:
         msg:
           - "Consolidated Users: {{ consolidated_users }}"
@@ -273,7 +273,7 @@
       when: debug_playbook | default(false)
 
     # Estadísticas
-    - name: "SOX-046 | Calcular Estadísticas Finales"
+    - name: "SOX-043 | Calcular Estadísticas Finales"
       ansible.builtin.set_fact:
         total_databases_processed: "{{ databases_success_list | length }}"
         total_databases_with_errors: "{{ databases_with_errors | length }}"
@@ -282,7 +282,7 @@
         total_users_created: "{{ consolidated_users | length }}"
         usuarios_unicos: "{{ consolidated_users | map(attribute=1) | unique | list }}"
 
-    - name: "SOX-046 | Resumen de Consolidación"
+    - name: "SOX-043 | Resumen de Consolidación"
       ansible.builtin.debug:
         msg:
           - "═══════════════════════════════════════════════════"
@@ -295,7 +295,7 @@
           - "Usuarios únicos creados: {{ usuarios_unicos | length }} -> {{ usuarios_unicos | join(', ') }}"
           - "═══════════════════════════════════════════════════"
 
-    - name: "SOX-046 | Detalle de Usuarios Creados"
+    - name: "SOX-043 | Detalle de Usuarios Creados"
       ansible.builtin.debug:
         msg:
           - "Base: {{ item.base_de_datos }}"
@@ -317,7 +317,7 @@
         name: sox_common
         tasks_from: insert_audit_records_oracle.yml
       vars:
-        audit_table: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_43 }}"
+        audit_table: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_43_user_creado_oracle }}"
         audit_records_oracle: "{{ consolidated_users }}"
         audit_db_config: "{{ sox_audit_db }}"
       when: consolidated_users | length > 0
@@ -344,7 +344,7 @@
 
           # Auditoría
           records_inserted_audit: "{{ audit_insert_result.successful_count | default(0) }}"
-          audit_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_43 }}"
+          audit_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_43_user_creado_oracle }}"
       tags: [reporting]
 
     # ═══════════════════════════════════════════════════════════

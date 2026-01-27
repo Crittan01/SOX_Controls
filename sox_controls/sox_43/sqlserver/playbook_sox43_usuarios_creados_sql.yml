@@ -7,7 +7,7 @@
 #              consultando tabla staging y generando reporte final
 # Frecuencia: Mensual (día 1 de cada mes)
 # Versión: 1.0.0
-# Autor: Equipo Automatización 
+# Autor: Equipo Automatización
 # Fecha Creación: 2025-01-10
 # ═══════════════════════════════════════════════════════════════
 - name: "SX4 | Control SOX 043 - Usuarios Creados en SQL Server (Auditoría Mensual)"
@@ -318,7 +318,7 @@
       ansible.builtin.debug:
         msg:
           - "════════════════════════════════════════════════════════════════"
-          - "REPORTE FINAL - SOX-046-SQL-MONTHLY"
+          - "REPORTE FINAL - SOX-043-SQL-MONTHLY"
           - "════════════════════════════════════════════════════════════════"
           - "Control: {{ sox_control_id }}"
           - "Fecha: {{ execution_date }} {{ execution_time }}"

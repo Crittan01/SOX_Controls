@@ -9,8 +9,14 @@ server5_SN5 ansible_host=server5 oracle_port=1234 oracle_service_name=SN5 oracle
 ansible_connection=local
 oracle_mode=normal
 
+[sqlserver_databases]
+server_GIG ansible_host=10.123.45.678 sqlserver_port=1436 sqlserver_instance=GIG sqlserver_database=master
+
+[sqlserver_databases:vars]
+ansible_connection=local
+
 [audit_database]
-SN_AUDIT ansible_host=server6 oracle_port=1234 oracle_service_name=SN_AUDIT oracle_sid=SN_AUDIT
+SN_AUDIT ansible_host=srorcbdp07 oracle_port=1537 oracle_service_name=SN_AUDIT
 
 [audit_database:vars]
 ansible_connection=local

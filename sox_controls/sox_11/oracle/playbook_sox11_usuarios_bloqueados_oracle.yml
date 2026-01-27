@@ -1,0 +1,306 @@
+---
+# ═══════════════════════════════════════════════════════════════
+# SOX 011 - USUARIOS BLOQUEADOS EN ORACLE - AUDITORÍA MENSUAL
+# ═══════════════════════════════════════════════════════════════
+- name: "SX8 | Control SOX 011 - Usuarios Bloqueados Oracle (Auditoría Mensual)"
+  hosts: localhost
+  gather_facts: true
+
+  vars:
+    sox_control_id: "sox11_oracle_usuarios_bloqueados"
+    sox_control_name: "{{ ansible_play_name | default('Usuarios Bloqueados en Oracle - Auditoría Mensual') }}"
+    sox_procedure_original: "dbo.Sp_Sox_011_Usuarios_Bloqueados_Oracle.StoredProcedure.sql"
+    sox_control_description: "Auditoría de usuarios bloqueados en bases Oracle del mes anterior"
+
+    sox11_sql_file: "{{ playbook_dir }}/procedures/Sp_Sox_011_Usuarios_Bloqueados_Oracle.sql"
+    sox11_report_sql_file: "{{ playbook_dir }}/procedures/Sp_Sox_011_Reporte_Usuarios_Bloqueados.sql"
+    sox11_email_template: "sox11_oracle_email_body.html.j2"
+
+    execution_timestamp: "{{ ansible_date_time.iso8601 }}"
+    execution_date: "{{ ansible_date_time.date }}"
+    execution_time: "{{ ansible_date_time.time }}"
+
+    aap_project_revision: "{{ tower_project_revision | default(awx_project_revision | default('LOCAL-DEV')) }}"
+    aap_job_id: "{{ tower_job_id | default(awx_job_id | default('localmente_no_AAP')) }}"
+    aap_job_template_name: "{{ tower_job_template_name | default(awx_job_template_name | default('Manual Execution')) }}"
+    aap_job_url: >-
+      {{ sox_urls.aap_base_url ~ '/#/jobs/playbook/' ~ (tower_job_id or awx_job_id)
+        if ((tower_job_id is defined or awx_job_id is defined) and sox_urls.aap_base_url is defined)
+        else 'localmente_no_AAP' }}
+    aap_executor_user: "{{ tower_user_name | default(awx_user_name | default('local_user')) }}"
+
+    consolidated_users: []
+    total_users_blocked: 0
+    databases_success_list: []
+    databases_with_errors: []
+    databases_with_users: []
+    usuarios_estructurados: []
+    usuarios_reporte_final: []
+
+  tasks:
+    - name: "SOX 011 | Banner Inicio de Ejecución"
+      ansible.builtin.debug:
+        msg:
+          - "╔═══════════════════════════════════════════════════════════╗"
+          - "║  CONTROL SOX 011 - USUARIOS BLOQUEADOS ORACLE             ║"
+          - "╚═══════════════════════════════════════════════════════════╝"
+          - "Fecha: {{ execution_date }} {{ execution_time }}"
+          - "Ejecutado por: {{ aap_executor_user }}"
+          - "Job ID: {{ aap_job_id }}"
+      tags: [always]
+
+    - name: "SOX 011 | Calcular evidencia del Archivo SQL"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: calculate_file_evidence.yml
+      vars:
+        sql_file_path: "{{ sox11_sql_file }}"
+        id_control_sox: "{{ sox_control_id }}"
+      tags: [evidence]
+
+    - name: "SOX 011 | Cargar contenido del Query SQL"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: load_sql_file.yml
+      vars:
+        sql_file_path: "{{ sox11_sql_file }}"
+      tags: [query_load]
+
+    - name: "SOX 011 | Generar Metadata Completa"
+      ansible.builtin.set_fact:
+        sox_metadata:
+          # Identificación del Control
+          control_id: "{{ sox_control_id }}"
+          control_name: "{{ sox_control_name }}"
+          control_description: "{{ sox_control_description }}"
+          control_version: "1.0.0"
+          procedure_original: "{{ sox_procedure_original }}"
+
+          # Timestamp de Ejecución
+          execution_timestamp: "{{ execution_timestamp }}"
+          execution_date: "{{ execution_date }}"
+          execution_time: "{{ execution_time }}"
+
+          # Evidencia del Archivo SQL (INDIVIDUAL)
+          sql_file_name: "{{ sql_file_evidence.filename }}"
+          sql_file_sha256: "{{ sql_file_evidence.sha256_hash }}"
+          sql_file_last_modified: "{{ sql_file_evidence.last_modified }}"
+          sql_file_size_bytes: "{{ sql_file_evidence.size_bytes }}"
+          aap_project_revision: "{{ aap_project_revision }}"
+
+          # Metadata AAP/AWX
+          aap_job_id: "{{ aap_job_id }}"
+          aap_job_template: "{{ aap_job_template_name }}"
+          aap_job_url: "{{ aap_job_url }}"
+          aap_executor: "{{ aap_executor_user }}"
+
+          # Versiones
+          ansible_version: "{{ ansible_version.full }}"
+          role_version: "1.0.0"
+
+          # Contenido del Query (para auditoría)
+          query_executed: "{{ sql_query_content }}"
+      tags: [metadata]
+
+    - name: "SOX 043 | Mostrar Evidencia de Control"
+      ansible.builtin.debug:
+        msg:
+          - "╔═══════════════════════════════════════════════════════════╗"
+          - "║  METADATA Y EVIDENCIA DEL CONTROL SOX 011                ║"
+          - "╚═══════════════════════════════════════════════════════════╝"
+          - "Control ID: {{ sox_metadata.control_id }}"
+          - "Control Name: {{ sox_metadata.control_name }}"
+          - "Control Version: {{ sox_metadata.control_version }}"
+          - ""
+          - "SQL File: {{ sox_metadata.sql_file_name }}"
+          - "SQL File SHA256: {{ sox_metadata.sql_file_sha256 }}"
+          - "SQL File Last Modified: {{ sox_metadata.sql_file_last_modified }}"
+          - "SQL File Size (bytes): {{ sox_metadata.sql_file_size_bytes }}"
+          - "Execution Timestamp: {{ sox_metadata.execution_timestamp }}"
+          - ""
+          - "Proyecto Git: {{ sox_metadata.aap_project_revision }}"
+          - "AAP Job ID: {{ sox_metadata.aap_job_id }}"
+          - "AAP Executor: {{ sox_metadata.aap_executor }}"
+      tags: [metadata_display]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 2: EJECUCIÓN DEL QUERY EN TODAS LAS BASES ORACLE
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 | Obtener lista de hosts Oracle"
+      ansible.builtin.set_fact:
+        oracle_hosts_list: "{{ groups['oracle_databases'] }}"
+
+    - name: "SOX 011 | Ejecutar Query en Bases Oracle"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: execute_query_oracle.yml
+      vars:
+        target_hosts: "{{ oracle_hosts_list }}"
+        oracle_query: "{{ sql_query_content }}"
+        query_name: "Usuarios Bloqueados en Oracle - Mes Anterior"
+      tags: [query_execution]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 3: CONSOLIDACIÓN DE RESULTADOS
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 | Registrar Bases Procesadas"
+      ansible.builtin.set_fact:
+        databases_success_list: "{{ databases_success_list + [item.database_name] }}"
+      when: item.execution_success | default(false)
+      loop: "{{ oracle_query_results.results }}"
+      loop_control:
+        label: "{{ item.database_name }}"
+
+    - name: "SOX 011 | Consolidar Usuarios Bloqueados"
+      ansible.builtin.set_fact:
+        consolidated_users: "{{ consolidated_users + item.query_result }}"
+        databases_with_users: "{{ databases_with_users + [item.database_name] }}"
+      when:
+        - item.execution_success | default(false)
+        - item.query_result | length > 0
+      loop: "{{ oracle_query_results.results }}"
+      loop_control:
+        label: "{{ item.database_name }}"
+
+    - name: "SOX 011 | Registrar Bases con Errores"
+      ansible.builtin.set_fact:
+        databases_with_errors: >-
+          {{ databases_with_errors + [{
+            'database_name': item.database_name,
+            'error_message': item.error_message,
+            'database_host': item.database_host
+          }] }}
+      when: not (item.execution_success | default(false))
+      loop: "{{ oracle_query_results.results }}"
+      loop_control:
+        label: "{{ item.database_name }}"
+
+    - name: "SOX 011 | Calcular Estadísticas"
+      ansible.builtin.set_fact:
+        total_databases_processed: "{{ databases_success_list | length }}"
+        total_databases_with_errors: "{{ databases_with_errors | length }}"
+        total_users_blocked: "{{ consolidated_users | length }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 4: INSERCIÓN EN BASE DE AUDITORÍA
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 | Insertar Registros en Tabla de Auditoría"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: insert_audit_records_generic_oracle.yml
+      vars:
+        audit_table: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_11_user_bloqueado }}"
+        audit_db_config: "{{ sox_audit_db }}"
+      when: consolidated_users | length > 0
+      tags: [audit_insert]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 5: CONSULTAR TABLA DE AUDITORÍA PARA REPORTE
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 | Cargar Query de Reporte"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: load_sql_file.yml
+      vars:
+        sql_file_path: "{{ sox11_report_sql_file }}"
+      when: consolidated_users | length > 0
+
+    - name: "SOX 011 | Ejecutar Query de Reporte en SN_AUDIT"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: execute_query_oracle.yml
+      vars:
+        target_hosts: ["SN_AUDIT"]
+        oracle_query: "{{ sql_query_content }}"
+      when: consolidated_users | length > 0
+
+    - name: "SOX 011 | Extraer resultados del reporte"
+      ansible.builtin.set_fact:
+        usuarios_reporte_final: "{{ oracle_query_results.results[0].query_result | default([]) }}"
+      when:
+        - consolidated_users | length > 0
+        - oracle_query_results.results | length > 0
+
+    - name: "SOX 011 | Estructurar datos para Excel/Email"
+      ansible.builtin.set_fact:
+        usuarios_estructurados: >-
+          {{ usuarios_estructurados + [{
+            'username': item[0],
+            'account_status': item[1],
+            'created': item[2],
+            'profile': item[3],
+            'expiry_date': item[4] | default('N/A', true),
+            'lock_date': item[5],
+            'fecha_ingesta': item[6] if item | length > 6 else execution_date
+          }] }}
+      loop: "{{ usuarios_reporte_final }}"
+      loop_control:
+        label: "{{ item[0] }}"
+      when: usuarios_reporte_final | length > 0
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 6: GENERACIÓN DE ESTADÍSTICAS PARA REPORTE
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 | Generar estadísticas del Reporte"
+      ansible.builtin.set_fact:
+        sox11_statistics:
+          total_databases: "{{ groups['oracle_databases'] | length }}"
+          databases_processed: "{{ total_databases_processed }}"
+          databases_failed: "{{ total_databases_with_errors }}"
+          total_users_blocked: "{{ total_users_blocked }}"
+          users_locked: "{{ usuarios_estructurados | selectattr('account_status', 'search', 'LOCKED')
+            | rejectattr('account_status', 'search', 'EXPIRED') | list | length }}"
+          users_expired: "{{ usuarios_estructurados | selectattr('account_status', 'search', 'EXPIRED')
+            | rejectattr('account_status', 'search', 'LOCKED') | list | length }}"
+          users_locked_and_expired: "{{ usuarios_estructurados | selectattr('account_status', 'search', 'LOCKED')
+            | selectattr('account_status', 'search', 'EXPIRED') | list | length }}"
+          records_inserted_audit: "{{ records_inserted | default(0) }}"
+          audit_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_11_user_bloqueado }}"
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 7: GENERACIÓN DE ARCHIVO EXCEL
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 | Generar archivo Excel con detalle"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: generate_excel_report.yml
+      vars:
+        excel_output_file: "/tmp/{{ sox_control_id }}_{{ execution_date }}.xlsx"
+        excel_sheet_name: "Usuarios Bloqueados"
+        excel_headers: ["Usuario", "Estado", "Creación", "Perfil", "Expiración", "Bloqueo", "Ingesta"]
+        excel_data: "{{ usuarios_estructurados }}"
+        excel_data_keys: ["username", "account_status", "created", "profile", "expiry_date", "lock_date", "fecha_ingesta"]
+        excel_title: "{{ sox_control_name }}"
+        excel_metadata:
+          - "Control: {{ sox_control_id }}"
+          - "Fecha: {{ execution_date }} {{ execution_time }}"
+          - "Total Bloqueados: {{ total_users_blocked }}"
+      when: usuarios_estructurados | length > 0
+
+    - name: "SOX 011 | Registrar ruta del archivo Excel generado"
+      ansible.builtin.set_fact:
+        excel_file_path: "{{ excel_result.file_path }}"
+      when:
+        - usuarios_estructurados | length > 0
+        - excel_result is defined
+      tags: [excel, reporting]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 7: ENVÍO DE REPORTE POR EMAIL
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 | Enviar Reporte por Email"
+      ansible.builtin.include_role:
+        name: sox_email_reporter
+      vars:
+        email_template: "{{ sox11_email_template }}"
+        email_subject: "{{ sox_control_name }} - {{ execution_date }}"
+        email_data:
+          metadata: "{{ sox_metadata }}"
+          statistics: "{{ sox11_statistics }}"
+          users: "{{ usuarios_estructurados }}"
+          databases_errors: "{{ databases_with_errors }}"
+          databases_success: "{{ databases_success_list }}"
+        email_config: "{{ sox_email_config }}"
+        email_attachments: "{{ [excel_file_path] if (usuarios_estructurados | length > 0 and excel_file_path is defined) else [] }}"
+      when: sox_email_config.to_addresses | length > 0
+      tags: [reporting]

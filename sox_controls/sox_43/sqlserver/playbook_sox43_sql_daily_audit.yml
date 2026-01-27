@@ -7,7 +7,7 @@
 #              SQL Server hacia tabla de staging en Oracle SN_AUDIT
 # Frecuencia: Diaria (1:00 AM)
 # Versión: 1.0.0
-# Autor: Equipo Automatización 
+# Autor: Equipo Automatización
 # Fecha Creación: 2025-01-10
 # ═══════════════════════════════════════════════════════════════
 - name: "SX4 | Control SOX 043 (Daily) - Recolección Diaria de Auditoría desde SQL Server"

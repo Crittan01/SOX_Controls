@@ -35,7 +35,10 @@ sox_audit_tables:
   sox_43_user_creado_sql: "SOX_USUARIOS_CREADOS_SQL"   # Paso 2 (mensual)
 
   # SX4 | CONTROL 43 ORACLE
-  sox_43: "SOX_USUARIOS_CREADOS"
+  sox_43_user_creado_oracle: "SOX_USUARIOS_CREADOS"
+
+  # SX8 | CONTROL 11 ORACLE  ← NUEVO
+  sox_11_user_bloqueado: "SOX_USUARIOS_BLOQUEADOS"
 
 #  sox_15: "SOX_015_USUARIOS_PRIVILEGIOS"
 #  sox_30: "SOX_030_CAMBIOS_PRIVILEGIOS"
