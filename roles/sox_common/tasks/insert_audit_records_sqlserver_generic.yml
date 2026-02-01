@@ -1,0 +1,142 @@
+# roles/sox_common/tasks/insert_audit_records_sqlserver_generic.yml
+---
+# ═══════════════════════════════════════════════════════════════
+# SOX COMMON - INSERTAR REGISTROS SQL SERVER EN ORACLE AUDIT (GENÉRICO)
+# ═══════════════════════════════════════════════════════════════
+# Descripción: Task genérica para insertar registros de SQL Server
+#              desde tabla staging a tabla final de auditoría
+# Parámetros requeridos:
+#   - audit_table: Nombre completo de la tabla destino (SCHEMA.TABLE)
+#   - audit_records_sqlserver_generic: Lista de tuplas con los datos
+#   - audit_db_config: Configuración de conexión a SN_AUDIT
+#   - include_fecha_ingesta: true/false (si la tabla tiene FECHA_INGESTA)
+# ═══════════════════════════════════════════════════════════════
+- name: "SOX Audit Generic | Insertar Registros SQL Server en Oracle"
+  block:
+    - name: "SOX Audit Generic | Validar que hay Registros para Insertar"
+      ansible.builtin.assert:
+        that:
+          - audit_records_sqlserver_generic is defined
+          - audit_records_sqlserver_generic | length > 0
+        fail_msg: "ERROR: No hay registros SQL Server para insertar"
+        success_msg: "OK: {{ audit_records_sqlserver_generic | length }} registro(s) listos"
+
+    - name: "SOX Audit Generic | DEBUG - Estructura del primer registro"
+      ansible.builtin.debug:
+        msg:
+          - "Estructura del primer registro SQL Server:"
+          - "  [0] event_time: {{ audit_records_sqlserver_generic[0][0] }}"
+          - "  [1] session_server_principal_name: {{ audit_records_sqlserver_generic[0][1] }}"
+          - "  [2] target_server_principal_name: {{ audit_records_sqlserver_generic[0][2] }}"
+          - "  [3] server_instance_name: {{ audit_records_sqlserver_generic[0][3] }}"
+          - "  [4] database_name: {{ audit_records_sqlserver_generic[0][4] }}"
+          - "  [5] object_name: {{ audit_records_sqlserver_generic[0][5] }}"
+          - "  [6] statement (primeros 100 chars): {{ audit_records_sqlserver_generic[0][6][:100] }}"
+          - "  [7] file_name: {{ audit_records_sqlserver_generic[0][7] }}"
+      when:
+        - debug_playbook | default(false)
+        - audit_records_sqlserver_generic | length > 0
+
+    - name: "SOX Audit Generic | Construir Lista de INSERTs"
+      ansible.builtin.set_fact:
+        insert_statements_sqlserver_generic: "{{ insert_statements_sqlserver_generic | default([]) + [insert_sql] }}"
+      vars:
+        # Sanitización de valores - Manejo de None/NULL
+        safe_event_time: "{{ item[0] if (item[0] is not none and item[0] | string | length > 0 and item[0] | string != 'None') else '' }}"
+        safe_session_server_principal_name: "{{ (item[1] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_target_server_principal_name: "{{ (item[2] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_server_instance_name: "{{ (item[3] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_database_name: "{{ (item[4] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_object_name: "{{ (item[5] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_statement: "{{ (item[6] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+        safe_file_name: "{{ (item[7] | default('') | string).replace('None', '') | replace(\"'\", \"''\") }}"
+
+        # Formato de timestamp Oracle
+        timestamp_format: 'YYYY-MM-DD"T"HH24:MI:SS.FF6'
+        timestamp_value: "{{ \"TO_TIMESTAMP('\" ~ safe_event_time ~ \"', '\" ~ timestamp_format ~ \"')\" if safe_event_time | length > 0 else 'NULL' }}"
+
+        # INSERT con o sin FECHA_INGESTA - CORREGIDO spacing
+        insert_sql: >-
+          INSERT INTO {{ audit_table }}
+          (event_time, session_server_principal_name, target_server_principal_name,
+          server_instance_name, database_name, object_name, statement, file_name{%- if include_fecha_ingesta | default(false) -%}, fecha_ingesta{%- endif -%})
+          VALUES
+          ({{ timestamp_value }},
+          '{{ safe_session_server_principal_name }}',
+          '{{ safe_target_server_principal_name }}',
+          '{{ safe_server_instance_name }}',
+          '{{ safe_database_name }}',
+          '{{ safe_object_name }}',
+          '{{ safe_statement }}',
+          '{{ safe_file_name }}'{%- if include_fecha_ingesta | default(false) -%}, SYSDATE{%- endif -%})
+      loop: "{{ audit_records_sqlserver_generic }}"
+      loop_control:
+        label: "{{ item[2] | default('N/A') }}@{{ item[3] | default('unknown') }}"
+
+    - name: "SOX Audit Generic | DEBUG - Primer INSERT generado"
+      ansible.builtin.debug:
+        msg: "{{ insert_statements_sqlserver_generic[0] }}"
+      when:
+        - debug_playbook | default(false)
+        - insert_statements_sqlserver_generic | length > 0
+
+    - name: "SOX Audit Generic | Ejecutar Inserciones en Oracle"
+      oracle_sql_async:
+        hostname: "{{ audit_db_config.host }}"
+        port: "{{ audit_db_config.port }}"
+        service_name: "{{ audit_db_config.service_name }}"
+        username: "{{ oracle_db_username }}"
+        password: "{{ oracle_db_password }}"
+        mode: "{{ audit_db_config.mode | default('normal') }}"
+        sql_list: "{{ insert_statements_sqlserver_generic }}"
+        max_workers: 10
+      register: audit_insert_result_sqlserver_generic
+
+    - name: "SOX Audit Generic | DEBUG - Resultado de Inserciones"
+      ansible.builtin.debug:
+        msg:
+          - "════════════════════════════════════════════════════════"
+          - "RESULTADO DE INSERCIÓN EN TABLA AUDIT"
+          - "════════════════════════════════════════════════════════"
+          - "Tabla: {{ audit_table }}"
+          - "Total Statements: {{ audit_insert_result_sqlserver_generic.summary.total_statements }}"
+          - "Exitosos: {{ audit_insert_result_sqlserver_generic.summary.successful }}"
+          - "Fallidos: {{ audit_insert_result_sqlserver_generic.summary.failed }}"
+          - "Tasa de Éxito: {{ audit_insert_result_sqlserver_generic.summary.success_rate }}%"
+          - "════════════════════════════════════════════════════════"
+      when: debug_playbook | default(false)
+
+    - name: "SOX Audit Generic | Validar Inserción Exitosa"
+      ansible.builtin.assert:
+        that:
+          - audit_insert_result_sqlserver_generic is succeeded
+          - audit_insert_result_sqlserver_generic.summary.successful | int > 0
+        fail_msg: |
+          ════════════════════════════════════════════════════════
+          ERROR CRÍTICO: Falló la inserción en tabla de auditoría
+          ════════════════════════════════════════════════════════
+          Tabla: {{ audit_table }}
+          Total INSERTs: {{ audit_insert_result_sqlserver_generic.summary.total_statements | default(0) }}
+          Exitosos: {{ audit_insert_result_sqlserver_generic.summary.successful | default(0) }}
+          Fallidos: {{ audit_insert_result_sqlserver_generic.summary.failed | default(0) }}
+        success_msg: >-
+          Inserción completada: {{ audit_insert_result_sqlserver_generic.summary.successful }}/
+          {{ audit_insert_result_sqlserver_generic.summary.total_statements }} registros
+
+  rescue:
+    - name: "SOX Audit Generic | Error en Inserción"
+      ansible.builtin.fail:
+        msg: |
+          ERROR: Falló la inserción de registros SQL Server
+          Error: {{ ansible_failed_result.msg | default('Error desconocido') }}
+          Tabla destino: {{ audit_table }}
+
+# Exportar resultados
+- name: "SOX Audit Generic | Exportar Resultados"
+  ansible.builtin.set_fact:
+    sqlserver_insert_results:
+      total_records: "{{ audit_records_sqlserver_generic | length }}"
+      records_inserted: "{{ audit_insert_result_sqlserver_generic.summary.successful | default(0) }}"
+      records_failed: "{{ audit_insert_result_sqlserver_generic.summary.failed | default(0) }}"
+      success_rate: "{{ audit_insert_result_sqlserver_generic.summary.success_rate | default(0) }}"
+      table_name: "{{ audit_table }}"

@@ -1,0 +1,289 @@
+# sox_controls/sox_11/sqlserver/playbook_sox11_usuarios_inactivos_sql.yml
+---
+# ═══════════════════════════════════════════════════════════════
+# SOX 011 SQL SERVER - USUARIOS INACTIVOS (DISABLE)
+# ═══════════════════════════════════════════════════════════════
+# Control ID: sox11_sqlserver_usuarios_inactivos
+# Descripción: Reporte mensual de usuarios SQL Server deshabilitados
+#              (ALTER LOGIN % DISABLE) del mes anterior
+# Frecuencia: Mensual (día 1 de cada mes)
+# Versión: 1.0.0
+# Autor: Equipo Automatización
+# Fecha Creación: 2025-01-26
+# ═══════════════════════════════════════════════════════════════
+- name: "SX8 | Control SOX 011 - Usuarios Inactivos SQL (Auditoría Mensual)"
+  hosts: localhost
+  gather_facts: true
+
+  vars:
+    # ───────────────────────────────────────────────────────────
+    # METADATA DEL CONTROL SOX
+    # ───────────────────────────────────────────────────────────
+    sox_control_id: "sox11_sqlserver_usuarios_inactivos"
+    sox_control_name: "{{ ansible_play_name | default('Usuarios Inactivos SQL Server - Reporte Mensual') }}"
+    sox_procedure_original: "dbo.Sp_Sox_011_Usuarios_Inactivos_SQL.StoredProcedure.sql"
+    sox_control_description: "Auditoría de usuarios SQL Server deshabilitados (ALTER LOGIN DISABLE) del mes anterior"
+
+    # ───────────────────────────────────────────────────────────
+    # RUTAS DE ARCHIVOS
+    # ───────────────────────────────────────────────────────────
+    sox11_sql_file: "{{ playbook_dir }}/procedures/Sp_Sox_011_Usuarios_Inactivos_SQL.sql"
+    sox11_email_template: "sox11_sqlserver_email_body.html.j2"
+
+    # ───────────────────────────────────────────────────────────
+    # METADATA DE EJECUCIÓN (AAP/AWX)
+    # ───────────────────────────────────────────────────────────
+    execution_timestamp: "{{ ansible_date_time.iso8601 }}"
+    execution_date: "{{ ansible_date_time.date }}"
+    execution_time: "{{ ansible_date_time.time }}"
+
+    aap_project_revision: "{{ tower_project_revision | default(awx_project_revision | default('LOCAL-DEV')) }}"
+    aap_job_id: "{{ tower_job_id | default(awx_job_id | default('localmente_no_AAP')) }}"
+    aap_job_template_name: "{{ tower_job_template_name | default(awx_job_template_name | default('Manual Execution')) }}"
+    aap_job_url: >-
+      {{ sox_urls.aap_base_url ~ '/#/jobs/playbook/' ~ (tower_job_id or awx_job_id)
+        if ((tower_job_id is defined or awx_job_id is defined) and sox_urls.aap_base_url is defined)
+        else 'localmente_no_AAP' }}
+    aap_executor_user: "{{ tower_user_name | default(awx_user_name | default('local_user')) }}"
+
+    # ───────────────────────────────────────────────────────────
+    # VARIABLES DE CONTROL
+    # ───────────────────────────────────────────────────────────
+    users_disabled_monthly: []
+    usuarios_estructurados: []
+
+  tasks:
+    # ═══════════════════════════════════════════════════════════
+    # FASE 1: METADATA Y EVIDENCIA
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 SQL | Banner Inicio"
+      ansible.builtin.debug:
+        msg:
+          - "╔═══════════════════════════════════════════════════════════╗"
+          - "║  SOX 011 - USUARIOS INACTIVOS SQL SERVER                  ║"
+          - "╚═══════════════════════════════════════════════════════════╝"
+          - "Fecha: {{ execution_date }} {{ execution_time }}"
+          - "Ejecutado por: {{ aap_executor_user }}"
+          - "Job ID: {{ aap_job_id }}"
+      tags: [always]
+
+    - name: "SOX 011 SQL | Calcular Evidencia del Archivo SQL"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: calculate_file_evidence.yml
+      vars:
+        sql_file_path: "{{ sox11_sql_file }}"
+        id_control_sox: "{{ sox_control_id }}"
+      tags: [evidence]
+
+    - name: "SOX 011 SQL | Cargar Contenido del Query"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: load_sql_file.yml
+      vars:
+        sql_file_path: "{{ sox11_sql_file }}"
+      tags: [query_load]
+
+    - name: "SOX 011 SQL | Generar Metadata Completa"
+      ansible.builtin.set_fact:
+        sox_metadata:
+          control_id: "{{ sox_control_id }}"
+          control_name: "{{ sox_control_name }}"
+          control_description: "{{ sox_control_description }}"
+          control_version: "1.0.0"
+          procedure_original: "{{ sox_procedure_original }}"
+
+          execution_timestamp: "{{ execution_timestamp }}"
+          execution_date: "{{ execution_date }}"
+          execution_time: "{{ execution_time }}"
+
+          sql_file_name: "{{ sql_file_evidence.filename }}"
+          sql_file_sha256: "{{ sql_file_evidence.sha256_hash }}"
+          sql_file_last_modified: "{{ sql_file_evidence.last_modified }}"
+          sql_file_size_bytes: "{{ sql_file_evidence.size_bytes }}"
+
+          aap_project_revision: "{{ aap_project_revision }}"
+          aap_job_id: "{{ aap_job_id }}"
+          aap_job_template: "{{ aap_job_template_name }}"
+          aap_job_url: "{{ aap_job_url }}"
+          aap_executor: "{{ aap_executor_user }}"
+
+          ansible_version: "{{ ansible_version.full }}"
+          role_version: "1.0.0"
+
+          query_executed: "{{ sql_query_content }}"
+      tags: [metadata]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 2: CONSULTAR TABLA STAGING EN ORACLE
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 SQL | Ejecutar Query en Tabla Staging (SN_AUDIT)"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: execute_query_oracle.yml
+      vars:
+        target_hosts: ["SN_AUDIT"]
+        oracle_query: "{{ sql_query_content }}"
+      tags: [query_execution]
+
+    - name: "SOX 011 SQL | Extraer Resultados de Staging"
+      ansible.builtin.set_fact:
+        users_disabled_monthly: "{{ oracle_query_results.results[0].query_result | default([]) }}"
+      when:
+        - oracle_query_results is defined
+        - oracle_query_results.results | length > 0
+        - oracle_query_results.results[0].execution_success | default(false)
+
+    - name: "SOX 011 SQL | Estadísticas de Consulta"
+      ansible.builtin.debug:
+        msg:
+          - "════════════════════════════════════════════════"
+          - "ESTADÍSTICAS - SOX-011-SQL-INACTIVOS"
+          - "════════════════════════════════════════════════"
+          - "Usuarios deshabilitados (mes anterior): {{ users_disabled_monthly | length }}"
+          - "════════════════════════════════════════════════"
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 3: ESTRUCTURAR DATOS
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 SQL | Estructurar Datos de Usuarios Deshabilitados"
+      ansible.builtin.set_fact:
+        usuarios_estructurados: >-
+          {{
+            usuarios_estructurados + [{
+              'event_time': item[0],
+              'session_server_principal_name': item[1],
+              'target_server_principal_name': item[2],
+              'server_instance_name': item[3],
+              'database_name': item[4],
+              'object_name': item[5],
+              'statement': item[6][:200] if (item[6] | string | length > 200) else item[6],
+              'file_name': item[7]
+            }]
+          }}
+      loop: "{{ users_disabled_monthly }}"
+      loop_control:
+        label: "{{ item[2] | default('N/A') }}@{{ item[3] | default('unknown') }}"
+      when: users_disabled_monthly | length > 0
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 4: INSERTAR EN TABLA FINAL DE AUDITORÍA
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 SQL | Insertar en Tabla de Auditoría"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: insert_audit_records_sqlserver_generic.yml
+      vars:
+        audit_table: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_11_user_inactivo_sql }}"
+        audit_records_sqlserver_generic: "{{ users_disabled_monthly }}"
+        audit_db_config: "{{ sox_audit_db }}"
+        include_fecha_ingesta: true  # Esta tabla tiene FECHA_INGESTA con DEFAULT
+      when: users_disabled_monthly | length > 0
+      tags: [audit_insert]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 5: GENERAR ESTADÍSTICAS
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 SQL | Generar Estadísticas del Reporte"
+      ansible.builtin.set_fact:
+        sox11_sql_statistics:
+          total_users_disabled: "{{ users_disabled_monthly | length }}"
+          unique_instances: "{{ users_disabled_monthly | map(attribute=3) | unique | list | length }}"
+          unique_databases: "{{ users_disabled_monthly | map(attribute=4) | unique | list | length }}"
+          records_inserted_audit: "{{ sqlserver_insert_results.records_inserted | default(0) }}"
+          records_failed_audit: "{{ sqlserver_insert_results.records_failed | default(0) }}"
+          audit_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_11_user_inactivo_sql }}"
+          staging_table_name: "{{ sox_audit_db.schema }}.{{ sox_audit_tables.sox_43_sql_staging }}"
+      tags: [reporting]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 6: GENERAR ARCHIVO EXCEL
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 SQL | Generar Excel"
+      ansible.builtin.include_role:
+        name: sox_common
+        tasks_from: generate_excel_report.yml
+      vars:
+        excel_output_file: "/tmp/{{ sox_control_id }}_{{ execution_date }}.xlsx"
+        excel_sheet_name: "Usuarios Inactivos - {{ execution_date }}"
+        excel_headers:
+          - "Fecha Evento"
+          - "Usuario Sesión"
+          - "Login Deshabilitado"
+          - "Instancia SQL"
+          - "Base de Datos"
+          - "Objeto"
+          - "Statement"
+          - "Archivo Audit"
+        excel_data: "{{ usuarios_estructurados }}"
+        excel_data_keys:
+          - "event_time"
+          - "session_server_principal_name"
+          - "target_server_principal_name"
+          - "server_instance_name"
+          - "database_name"
+          - "object_name"
+          - "statement"
+          - "file_name"
+        excel_title: "{{ sox_control_name }}"
+        excel_metadata:
+          - "Control: {{ sox_control_id }}"
+          - "Descripción: {{ sox_control_description }}"
+          - "Fecha: {{ execution_date }} {{ execution_time }}"
+          - "Período: Mes Anterior"
+          - "Total Deshabilitados: {{ sox11_sql_statistics.total_users_disabled }}"
+          - "Job ID: {{ aap_job_id }}"
+      when: usuarios_estructurados | length > 0
+      tags: [excel, reporting]
+
+    - name: "SOX 011 SQL | Registrar Ruta Excel"
+      ansible.builtin.set_fact:
+        excel_file_path: "{{ excel_result.file_path }}"
+      when:
+        - usuarios_estructurados | length > 0
+        - excel_result is defined
+      tags: [excel]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 7: ENVÍO DE REPORTE POR EMAIL
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 SQL | Enviar Reporte por Email"
+      ansible.builtin.include_role:
+        name: sox_email_reporter
+      vars:
+        email_template: "{{ sox11_email_template }}"
+        email_subject: "{{ sox_control_name }} - {{ execution_date }}"
+        email_data:
+          metadata: "{{ sox_metadata }}"
+          statistics: "{{ sox11_sql_statistics }}"
+          users: "{{ usuarios_estructurados }}"
+        email_config: "{{ sox_email_config }}"
+        email_attachments: >-
+          {{ [excel_file_path] if (usuarios_estructurados | length > 0 and excel_file_path is defined) else [] }}
+      when: sox_email_config.to_addresses is defined and sox_email_config.to_addresses | length > 0
+      tags: [email, reporting]
+
+    # ═══════════════════════════════════════════════════════════
+    # FASE 8: REPORTE FINAL
+    # ═══════════════════════════════════════════════════════════
+    - name: "SOX 011 SQL | Reporte Final"
+      ansible.builtin.debug:
+        msg:
+          - "════════════════════════════════════════════════════════════════"
+          - "REPORTE FINAL - SOX-011-SQL-INACTIVOS"
+          - "════════════════════════════════════════════════════════════════"
+          - "Control: {{ sox_control_id }}"
+          - "Fecha: {{ execution_date }} {{ execution_time }}"
+          - "----------------------------------------------------------------"
+          - "Usuarios Deshabilitados: {{ sox11_sql_statistics.total_users_disabled }}"
+          - "Instancias SQL: {{ sox11_sql_statistics.unique_instances }}"
+          - "Bases de Datos: {{ sox11_sql_statistics.unique_databases }}"
+          - "----------------------------------------------------------------"
+          - "Tabla Staging: {{ sox11_sql_statistics.staging_table_name }}"
+          - "Tabla Auditoría: {{ sox11_sql_statistics.audit_table_name }}"
+          - "Registros Insertados: {{ sox11_sql_statistics.records_inserted_audit }}"
+          - "----------------------------------------------------------------"
+          - "Excel: {{ excel_file_path | default('No generado') }}"
+          - "SHA256: {{ sox_metadata.sql_file_sha256 }}"
+          - "════════════════════════════════════════════════════════════════"
+      tags: [reporting]
